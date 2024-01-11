@@ -307,6 +307,12 @@
 			<version>3.14.9</version>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>net.runelite</groupId>
+			<artifactId>cache</artifactId>
+			<version>1.10.18-SNAPSHOT</version>
+			<scope>compile</scope>
+		</dependency>
 	</dependencies>
 
 	<dependencyManagement>
