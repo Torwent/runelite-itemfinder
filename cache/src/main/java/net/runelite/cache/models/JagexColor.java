@@ -26,7 +26,7 @@ package net.runelite.cache.models;
 
 public final class JagexColor
 {
-	public static final double BRIGHTNESS_MAX = .6;
+	public static final double BRIGHTNESS_MAX = .5;
 	public static final double BRIGHTNESS_HIGH = .7;
 	public static final double BRIGHTNESS_LOW = .8;
 	public static final double BRIGHTNESS_MIN = .9;
