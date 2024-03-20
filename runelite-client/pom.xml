@@ -304,7 +304,7 @@
 		<dependency>
 			<groupId>net.runelite</groupId>
 			<artifactId>cache</artifactId>
-			<version>1.10.18-SNAPSHOT</version>
+			<version>1.10.24-SNAPSHOT</version>
 			<scope>compile</scope>
 		</dependency>
 	</dependencies>

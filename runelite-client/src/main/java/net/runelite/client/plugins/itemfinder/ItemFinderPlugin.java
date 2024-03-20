@@ -24,6 +24,7 @@
  */
 package net.runelite.client.plugins.itemfinder;
 
+import com.google.common.hash.Hashing;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.client.callback.ClientThread;
@@ -36,14 +37,14 @@ import org.apache.commons.lang3.tuple.MutableTriple;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import java.awt.image.BufferedImage;
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.FileWriter;
+import java.awt.image.DataBufferByte;
+import java.awt.image.DataBufferInt;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -89,7 +90,6 @@ public class ItemFinderPlugin extends Plugin {
 	}
 
 	private void Filter() {
-
 		for (int i = 0; i < items.size(); i++) {
 			boolean isDuplicate = false;
 			for (int j = 0; j < filteredItems.size(); j++) {
@@ -115,14 +115,12 @@ public class ItemFinderPlugin extends Plugin {
 		if ((dumped) || (client.getGameState() != GameState.LOGIN_SCREEN)) {
 			return;
 		}
-		System.out.println("ItemFinder HELLO...");
+		System.out.println("ItemFinder starting...");
 		clientThread.invoke(() ->
 		{
 			try {
 				System.out.println("ItemFinder...");
-
 				String dir = Paths.get(System.getProperty("user.dir") + File.separator + "itemfinder" + File.separator).toString();
-
 
 				if (!Files.isDirectory(Paths.get(dir))) {
 					Files.createDirectory(Paths.get(dir));
@@ -138,17 +136,22 @@ public class ItemFinderPlugin extends Plugin {
 				Filter();
 				System.out.println("Filtered item count: " + filteredItems.size());
 
-				ZipOutputStream zip = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(new File(dir, "item-images.zip"))));
-				FileWriter items = new FileWriter(new File(dir, "item-names"));
+				ZipOutputStream zip = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(new File(dir, "images.zip"))));
+
+				FileWriter item = new FileWriter(new File(dir, "item"));
+				FileWriter id = new FileWriter(new File(dir, "id"));
 
 				for (int i = 0; i < filteredItems.size(); i++) {
 					zip.putNextEntry(new ZipEntry(filteredItems.get(i).left + ".png"));
 					ImageIO.write(filteredItems.get(i).right, "png", zip);
-					items.write(filteredItems.get(i).middle + "=" + filteredItems.get(i).left + System.lineSeparator());
+
+					item.write(filteredItems.get(i).middle + System.lineSeparator());
+					id.write( filteredItems.get(i).left + System.lineSeparator());
 				}
 
 				zip.close();
-				items.close();
+				item.close();
+				id.close();
 
 				System.out.println("ItemFinder completed");
 			} catch (Exception e) {
