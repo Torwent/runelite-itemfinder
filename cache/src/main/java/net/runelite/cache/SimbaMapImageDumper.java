@@ -126,7 +126,7 @@ public class SimbaMapImageDumper
 	{
 		Options options = new Options();
 		options.addOption(Option.builder().longOpt("cachedir").hasArg().required().build());
-		options.addOption(Option.builder().longOpt("xteapath").hasArg().required().build());
+		options.addOption(Option.builder().longOpt("cachename").hasArg().required().build());
 		options.addOption(Option.builder().longOpt("outputdir").hasArg().required().build());
 
 		CommandLineParser parser = new DefaultParser();
@@ -142,9 +142,13 @@ public class SimbaMapImageDumper
 			return;
 		}
 
-		final String cacheDirectory = cmd.getOptionValue("cachedir");
-		final String xteaJSONPath = cmd.getOptionValue("xteapath");
-		final String outputDirectory = cmd.getOptionValue("outputdir");
+		final String mainDir = cmd.getOptionValue("cachedir");
+		final String cacheName = cmd.getOptionValue("cachename");
+
+		final String cacheDirectory = mainDir + File.separator + cacheName + File.separator + "cache";
+
+		final String xteaJSONPath = mainDir + File.separator + cacheName + File.separator + cacheName.replace("cache-", "keys-") + ".json";
+		final String outputDirectory = cmd.getOptionValue("outputdir") + File.separator + cacheName + File.separator + "map";
 
 		XteaKeyManager xteaKeyManager = new XteaKeyManager();
 		try (FileInputStream fin = new FileInputStream(xteaJSONPath))
@@ -852,8 +856,9 @@ public class SimbaMapImageDumper
 
 		if (exportChunks) {
 			try {
+
 				BufferedImage chunk = image.getSubimage(drawBaseX * MAP_SCALE, drawBaseY * MAP_SCALE, Region.X * MAP_SCALE, Region.Y * MAP_SCALE);
-				File imageFile = new File(outDir, drawBaseY + "-" + drawBaseX + ".png");
+				File imageFile = new File(outDir, region.getRegionY() + "-" + region.getRegionX() + ".png");
 				ImageIO.write(chunk, "png", imageFile);
 			} catch (IOException e) {
 				throw new RuntimeException(e);
