@@ -594,14 +594,8 @@ public class SimbaMapImageDumper
 
 	private static int convert(int d)
 	{
-		if (d >= 0)
-		{
-			return d % 64;
-		}
-		else
-		{
-			return 64 - -(d % 64) - 1;
-		}
+		if (d >= 0) return d % 64;
+		return 64 - -(d % 64) - 1;
 	}
 
 	private void drawObjects(BufferedImage image, int drawBaseX, int drawBaseY, Region region, int z)
@@ -675,83 +669,63 @@ public class SimbaMapImageDumper
 								{
 									if (rotation == 0)
 									{
-										image.setRGB(drawX + 0, drawY + 0, rgb);
-										image.setRGB(drawX + 0, drawY + 1, rgb);
-										image.setRGB(drawX + 0, drawY + 2, rgb);
-										image.setRGB(drawX + 0, drawY + 3, rgb);
+										for (int i = 0; i < MAP_SCALE; i++) {
+											image.setRGB(drawX, drawY + i, rgb);
+										}
 									}
 									else if (rotation == 1)
 									{
-										image.setRGB(drawX + 0, drawY + 0, rgb);
-										image.setRGB(drawX + 1, drawY + 0, rgb);
-										image.setRGB(drawX + 2, drawY + 0, rgb);
-										image.setRGB(drawX + 3, drawY + 0, rgb);
+										for (int i = 0; i < MAP_SCALE; i++) {
+											image.setRGB(drawX + i, drawY, rgb);
+										}
 									}
 									else if (rotation == 2)
 									{
-										image.setRGB(drawX + 3, drawY + 0, rgb);
-										image.setRGB(drawX + 3, drawY + 1, rgb);
-										image.setRGB(drawX + 3, drawY + 2, rgb);
-										image.setRGB(drawX + 3, drawY + 3, rgb);
+										for (int i = 0; i < MAP_SCALE; i++) {
+											image.setRGB(drawX + MAP_SCALE-1, drawY + i, rgb);
+										}
 									}
 									else if (rotation == 3)
 									{
-										image.setRGB(drawX + 0, drawY + 3, rgb);
-										image.setRGB(drawX + 1, drawY + 3, rgb);
-										image.setRGB(drawX + 2, drawY + 3, rgb);
-										image.setRGB(drawX + 3, drawY + 3, rgb);
+										for (int i = 0; i < MAP_SCALE; i++) {
+											image.setRGB(drawX + i, drawY + MAP_SCALE-1, rgb);
+										}
 									}
 								}
 
 								if (type == 3)
 								{
-									if (rotation == 0)
-									{
-										image.setRGB(drawX + 0, drawY + 0, rgb);
-									}
-									else if (rotation == 1)
-									{
-										image.setRGB(drawX + 3, drawY + 0, rgb);
-									}
-									else if (rotation == 2)
-									{
-										image.setRGB(drawX + 3, drawY + 3, rgb);
-									}
-									else if (rotation == 3)
-									{
-										image.setRGB(drawX + 0, drawY + 3, rgb);
-									}
+									if (rotation == 0) image.setRGB(drawX, drawY, rgb);
+									else if (rotation == 1)image.setRGB(drawX + MAP_SCALE-1, drawY, rgb);
+									else if (rotation == 2) image.setRGB(drawX + MAP_SCALE-1, drawY + MAP_SCALE-1, rgb);
+									else if (rotation == 3) image.setRGB(drawX , drawY + MAP_SCALE-1, rgb);
 								}
 
 								if (type == 2)
 								{
-									if (rotation == 3)
+									if (rotation == 0)
 									{
-										image.setRGB(drawX + 0, drawY + 0, rgb);
-										image.setRGB(drawX + 0, drawY + 1, rgb);
-										image.setRGB(drawX + 0, drawY + 2, rgb);
-										image.setRGB(drawX + 0, drawY + 3, rgb);
-									}
-									else if (rotation == 0)
-									{
-										image.setRGB(drawX + 0, drawY + 0, rgb);
-										image.setRGB(drawX + 1, drawY + 0, rgb);
-										image.setRGB(drawX + 2, drawY + 0, rgb);
-										image.setRGB(drawX + 3, drawY + 0, rgb);
+										for (int i = 0; i < MAP_SCALE; i++) {
+											image.setRGB(drawX + i, drawY, rgb);
+										}
 									}
 									else if (rotation == 1)
 									{
-										image.setRGB(drawX + 3, drawY + 0, rgb);
-										image.setRGB(drawX + 3, drawY + 1, rgb);
-										image.setRGB(drawX + 3, drawY + 2, rgb);
-										image.setRGB(drawX + 3, drawY + 3, rgb);
+										for (int i = 0; i < MAP_SCALE; i++) {
+											image.setRGB(drawX + MAP_SCALE-1, drawY + i, rgb);
+										}
 									}
 									else if (rotation == 2)
 									{
-										image.setRGB(drawX + 0, drawY + 3, rgb);
-										image.setRGB(drawX + 1, drawY + 3, rgb);
-										image.setRGB(drawX + 2, drawY + 3, rgb);
-										image.setRGB(drawX + 3, drawY + 3, rgb);
+										for (int i = 0; i < MAP_SCALE; i++) {
+											image.setRGB(drawX + i, drawY + MAP_SCALE-1, rgb);
+										}
+									}
+									else if (rotation == 3)
+									{
+										for (int i = 0; i < MAP_SCALE; i++) {
+											image.setRGB(drawX, drawY + i, rgb);
+										}
 									}
 								}
 							}
@@ -782,17 +756,15 @@ public class SimbaMapImageDumper
 
 								if (rotation != 0 && rotation != 2)
 								{
-									image.setRGB(drawX + 0, drawY + 0, rgb);
-									image.setRGB(drawX + 1, drawY + 1, rgb);
-									image.setRGB(drawX + 2, drawY + 2, rgb);
-									image.setRGB(drawX + 3, drawY + 3, rgb);
+									for (int i = 0; i < MAP_SCALE; i++) {
+										image.setRGB(drawX + i, drawY + i, rgb);
+									}
 								}
 								else
 								{
-									image.setRGB(drawX + 0, drawY + 3, rgb);
-									image.setRGB(drawX + 1, drawY + 2, rgb);
-									image.setRGB(drawX + 2, drawY + 1, rgb);
-									image.setRGB(drawX + 3, drawY + 0, rgb);
+									for (int i = 0; i < MAP_SCALE; i++) {
+										image.setRGB(drawX + i, drawY + (MAP_SCALE - 1 - i), rgb);
+									}
 								}
 							}
 						}
@@ -847,25 +819,10 @@ public class SimbaMapImageDumper
 
 	private int packHsl(int var0, int var1, int var2)
 	{
-		if (var2 > 179)
-		{
-			var1 /= 2;
-		}
-
-		if (var2 > 192)
-		{
-			var1 /= 2;
-		}
-
-		if (var2 > 217)
-		{
-			var1 /= 2;
-		}
-
-		if (var2 > 243)
-		{
-			var1 /= 2;
-		}
+		if (var2 > 179) var1 /= 2;
+		if (var2 > 192) var1 /= 2;
+		if (var2 > 217) var1 /= 2;
+		if (var2 > 243) var1 /= 2;
 
 		int var3 = (var1 / 32 << 7) + (var0 / 4 << 10) + var2 / 2;
 		return var3;
@@ -873,59 +830,32 @@ public class SimbaMapImageDumper
 
 	static int method1792(int var0, int var1)
 	{
-		if (var0 == -1)
-		{
-			return 12345678;
-		}
-		else
-		{
-			var1 = (var0 & 127) * var1 / 128;
-			if (var1 < 2)
-			{
-				var1 = 2;
-			}
-			else if (var1 > 126)
-			{
-				var1 = 126;
-			}
+		if (var0 == -1) return 12345678;
 
-			return (var0 & 65408) + var1;
-		}
+		var1 = (var0 & 127) * var1 / 128;
+		if (var1 < 2) var1 = 2;
+		else if (var1 > 126) var1 = 126;
+
+		return (var0 & 65408) + var1;
 	}
 
 	static final int adjustHSLListness0(int var0, int var1)
 	{
-		if (var0 == -2)
+		if (var0 == -2) return 12345678;
+
+		if (var0 == -1)
 		{
-			return 12345678;
-		}
-		else if (var0 == -1)
-		{
-			if (var1 < 2)
-			{
-				var1 = 2;
-			}
-			else if (var1 > 126)
-			{
-				var1 = 126;
-			}
+			if (var1 < 2) var1 = 2;
+			else if (var1 > 126) var1 = 126;
 
 			return var1;
 		}
-		else
-		{
-			var1 = (var0 & 127) * var1 / 128;
-			if (var1 < 2)
-			{
-				var1 = 2;
-			}
-			else if (var1 > 126)
-			{
-				var1 = 126;
-			}
 
-			return (var0 & 65408) + var1;
-		}
+		var1 = (var0 & 127) * var1 / 128;
+		if (var1 < 2) var1 = 2;
+		else if (var1 > 126) var1 = 126;
+
+		return (var0 & 65408) + var1;
 	}
 
 	private void drawMapSquare(int[][] pixels, int x, int y, int rgb)

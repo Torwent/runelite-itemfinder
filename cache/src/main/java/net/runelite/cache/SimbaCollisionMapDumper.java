@@ -45,11 +45,11 @@ import net.runelite.cache.util.XteaKeyManager;
 import org.apache.commons.cli.*;
 
 import javax.imageio.ImageIO;
-import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.Buffer;
 import java.util.List;
 import java.util.*;
 
@@ -64,14 +64,13 @@ public class SimbaCollisionMapDumper
 	private static int[][] TILE_SHAPE_2D = new int[][]{{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, {1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1}, {1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0}, {0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1}, {0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, {1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1}, {1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0}, {1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1}, {1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1}, {0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1}};
 	private static int[][] TILE_ROTATION_2D = new int[][]{{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, {12, 8, 4, 0, 13, 9, 5, 1, 14, 10, 6, 2, 15, 11, 7, 3}, {15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}, {3, 7, 11, 15, 2, 6, 10, 14, 1, 5, 9, 13, 0, 4, 8, 12}};
 
-	private final int wallColor = (238 + (int) (random() * 20.0D) - 10 << 16) + (238 + (int) (random() * 20.0D) - 10 << 8) + (238 + (int) (random() * 20.0D) - 10);
-	private final int doorColor = 238 + (int) (random() * 20.0D) - 10 << 16;
+	private static final int collisionColor = 0x000000;
+	private static final int walkableColor = 0xFFFFFF;
 
 	private final Store store;
 
 	private final Map<Integer, UnderlayDefinition> underlays = new HashMap<>();
 	private final Map<Integer, OverlayDefinition> overlays = new HashMap<>();
-	private SpriteDefinition[] mapDecorations;
 
 	private final RegionLoader regionLoader;
 	private final AreaManager areas;
@@ -79,19 +78,9 @@ public class SimbaCollisionMapDumper
 	private RSTextureProvider rsTextureProvider;
 	private final ObjectManager objectManager;
 
-	@Getter
-	@Setter
-	private boolean labelRegions;
+	private final boolean exportChunks = true;
 
-	@Getter
-	@Setter
-	private boolean outlineRegions;
-	private boolean exportChunks = true;
-
-	private static final boolean debugMap = true;
-	private static final int collisionColor = 0x0000FF;
-	private static final int[] debugColors = new int[]{0x00FFFF, 0x0055FF};
-
+	private static final boolean debugMap = false;
 
 	@Getter
 	@Setter
@@ -107,7 +96,7 @@ public class SimbaCollisionMapDumper
 
 	@Getter
 	@Setter
-	private boolean lowMemory = true;
+	private boolean lowMemory = false;
 
 	public SimbaCollisionMapDumper(Store store, KeyProvider keyProvider)
 	{
@@ -177,8 +166,8 @@ public class SimbaCollisionMapDumper
 			for (int i = 0; i < Region.Z; ++i)
 			{
 				File mapDir = new File(outputDirectory + File.separator + i);
-				mapDir.mkdirs();
-				BufferedImage image = dumper.drawMap(i, mapDir);
+				if (dumper.exportChunks) mapDir.mkdirs();
+				BufferedImage image = dumper.drawRegions(i, mapDir);
 
 				File imageFile = new File(outDir, "img-" + i + ".png");
 
@@ -208,11 +197,10 @@ public class SimbaCollisionMapDumper
 		areas.load();
 		sprites.load();
 		loadSprites();
-
 		return this;
 	}
 
-	public BufferedImage drawMap(int z, File outDir)
+	public BufferedImage drawRegions(int z, File outDir)
 	{
 		int minX = regionLoader.getLowestX().getBaseX();
 		int minY = regionLoader.getLowestY().getBaseY();
@@ -232,64 +220,16 @@ public class SimbaCollisionMapDumper
 
 		BufferedImage image;
 		if (lowMemory)
-		{
 			image = BigBufferedImage.create(pixelsX, pixelsY, transparency ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
-		}
 		else
-		{
 			image = new BufferedImage(pixelsX, pixelsY, transparency ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
-		}
 
-		drawMap(image, z);
-		drawObjects(image, z);
-		drawMapIcons(image, z, outDir);
+		drawRegions(image, z, outDir);
 
 		return image;
 	}
 
-	private void drawMap(BufferedImage image, int drawBaseX, int drawBaseY, int z, Region region)
-	{
-		if (!renderMap)
-		{
-			return;
-		}
-
-		int[][][] map = new int[4][][];
-
-		for (int x = 0; x < Region.X; ++x)
-		{
-			for (int y = 0; y < Region.Y; ++y)
-			{
-				boolean isBridge = (region.getTileSetting(1, x, Region.Y - y - 1) & 2) != 0;
-				int tileZ = z + (isBridge ? 1 : 0);
-				if (tileZ >= Region.Z)
-				{
-					continue;
-				}
-
-				int tileSetting = region.getTileSetting(z, x, Region.Y - y - 1);
-				if ((tileSetting & 24) == 0)
-				{
-					if (z == 0 && isBridge)
-					{
-						drawTile(image, map, region, drawBaseX, drawBaseY, 0, x, y);
-					}
-					drawTile(image, map, region, drawBaseX, drawBaseY, tileZ, x, y);
-				}
-
-				if (tileZ < 3)
-				{
-					int upTileSetting = region.getTileSetting(z + 1, x, Region.Y - y - 1);
-					if ((upTileSetting & 8) != 0)
-					{
-						drawTile(image, map, region, drawBaseX, drawBaseY, tileZ + 1, x, y);
-					}
-				}
-			}
-		}
-	}
-
-	private void drawMap(BufferedImage image, int z)
+	private void drawRegions(BufferedImage image, int z, File outDir)
 	{
 		for (Region region : regionLoader.getRegions())
 		{
@@ -303,7 +243,48 @@ public class SimbaCollisionMapDumper
 			// region has the greatest y, so invert
 			int drawBaseY = regionLoader.getHighestY().getBaseY() - baseY;
 
-			drawMap(image, drawBaseX, drawBaseY, z, region);
+			drawRegions(image, drawBaseX, drawBaseY, z, region);
+			drawObjects(image, drawBaseX, drawBaseY, region, z);
+
+			if (exportChunks) {
+				try {
+					BufferedImage chunk = image.getSubimage(drawBaseX * MAP_SCALE, drawBaseY * MAP_SCALE, Region.X * MAP_SCALE, Region.Y * MAP_SCALE);
+					File imageFile = new File(outDir, region.getRegionY() + "-" + region.getRegionX() + ".png");
+					ImageIO.write(chunk, "png", imageFile);
+				} catch (IOException e) {
+					throw new RuntimeException(e);
+				}
+			}
+		}
+	}
+
+	private void drawRegions(BufferedImage image, int drawBaseX, int drawBaseY, int z, Region region)
+	{
+		if (!renderMap) return;
+
+		int[][][] map = new int[4][][];
+
+		for (int x = 0; x < Region.X; ++x)
+		{
+			for (int y = 0; y < Region.Y; ++y)
+			{
+				boolean isBridge = (region.getTileSetting(1, x, Region.Y - y - 1) & 2) != 0;
+				int tileZ = z + (isBridge ? 1 : 0);
+				if (tileZ >= Region.Z) continue;
+
+				int tileSetting = region.getTileSetting(z, x, Region.Y - y - 1);
+				if ((tileSetting & 24) == 0)
+				{
+					if (z == 0 && isBridge) drawTile(image, map, region, drawBaseX, drawBaseY, 0, x, y);
+					drawTile(image, map, region, drawBaseX, drawBaseY, tileZ, x, y);
+				}
+
+				if (tileZ < 3)
+				{
+					int upTileSetting = region.getTileSetting(z + 1, x, Region.Y - y - 1);
+					if ((upTileSetting & 8) != 0) drawTile(image, map, region, drawBaseX, drawBaseY, tileZ + 1, x, y);
+				}
+			}
 		}
 	}
 
@@ -314,10 +295,11 @@ public class SimbaCollisionMapDumper
 
 		int[][] pixels = planes[z];
 
-		if ((pixels == null) && debugMap)
+		if ((pixels == null))
 		{
 			pixels = planes[z] = new int[Region.X * MAP_SCALE][Region.Y * MAP_SCALE];
-			drawMap(pixels, region, z);
+			if (debugMap) //MAYBE CAN REMOVE?
+				drawRegions(pixels, region, z);
 		}
 
 		assert pixels != null;
@@ -327,31 +309,19 @@ public class SimbaCollisionMapDumper
 			for (int j = 0; j < MAP_SCALE; ++j)
 			{
 				int argb;
-				if (debugMap) {
-					argb = pixels[x * MAP_SCALE + i][y * MAP_SCALE + j];
-				} else {
-					argb = 0;
-				}
+				if (debugMap) argb = pixels[x * MAP_SCALE + i][y * MAP_SCALE + j];
+				else  argb = walkableColor;
 
 				int tempX = drawBaseX * MAP_SCALE + x * MAP_SCALE + i;
 				int tempY = drawBaseY * MAP_SCALE + y * MAP_SCALE + j;
 
-				boolean isWildyDitch = ((tempX >= 7172) && (tempY >= 36340) && (tempX <= 7364) && (tempY <= 36348)) ||
-						((tempX >= 7376) && (tempY >= 36292) && (tempX <= 7384) && (tempY <= 36316)) ||
-						((tempX >= 7556) && (tempY >= 36340) && (tempX <= 8716) && (tempY <= 36348));
-
-				if (unWalkable || isWildyDitch) {
-					to.setRGB(tempX, tempY, collisionColor);
-				}
-				else if (argb != 0)
-				{
-					to.setRGB(tempX,tempY, argb);
-				}
+				if (unWalkable) to.setRGB(tempX, tempY, collisionColor);
+				else if (argb != 0) to.setRGB(tempX,tempY, argb);
 			}
 		}
 	}
 
-	private void drawMap(int[][] pixels, Region region, int z)
+	private void drawRegions(int[][] pixels, Region region, int z)
 	{
 		int baseX = region.getBaseX();
 		int baseY = region.getBaseY();
@@ -459,14 +429,9 @@ public class SimbaCollisionMapDumper
 									int avgLight = runningLight / runningNumber;
 									// randomness is added to avgHue here
 
-									if (avgLight < 0)
-									{
-										avgLight = 0;
-									}
-									else if (avgLight > 255)
-									{
-										avgLight = 255;
-									}
+									if (avgLight < 0) avgLight = 0;
+									else if (avgLight > 255) avgLight = 255;
+
 
 									underlayHsl = packHsl(avgHue, avgSat, avgLight);
 								}
@@ -480,10 +445,8 @@ public class SimbaCollisionMapDumper
 
 								int shape, rotation;
 								int overlayRgb = 0;
-								if (overlayId == 0)
-								{
-									shape = rotation = 0;
-								}
+
+								if (overlayId == 0) shape = rotation = 0;
 								else
 								{
 									shape = r.getOverlayPath(z, convert(xi), convert(yi)) + 1;
@@ -494,13 +457,9 @@ public class SimbaCollisionMapDumper
 									int hsl;
 
 									if (overlayTexture >= 0)
-									{
 										hsl = rsTextureProvider.getAverageTextureRGB(overlayTexture);
-									}
 									else if (overlayDefinition.getRgbColor() == 0xFF_00FF)
-									{
 										hsl = -2;
-									}
 									else
 									{
 										// randomness added here
@@ -603,22 +562,21 @@ public class SimbaCollisionMapDumper
 
 	private static int convert(int d)
 	{
-		if (d >= 0)
-		{
-			return d % 64;
-		}
-		else
-		{
-			return 64 - -(d % 64) - 1;
+		if (d >= 0) return d % 64;
+		return 64 - -(d % 64) - 1;
+	}
+
+	private void paintTile(BufferedImage image, int x, int y, int color){
+		for (int i = 0; i < MAP_SCALE; i++) {
+			for (int j = 0; j < MAP_SCALE; j++) {
+				image.setRGB(x + i, y + j, color);
+			}
 		}
 	}
 
 	private void drawObjects(BufferedImage image, int drawBaseX, int drawBaseY, Region region, int z)
 	{
-		if (!renderObjects)
-		{
-			return;
-		}
+		if (!renderObjects) return;
 
 		List<Location> planeLocs = new ArrayList<>();
 		List<Location> pushDownLocs = new ArrayList<>();
@@ -634,26 +592,17 @@ public class SimbaCollisionMapDumper
 				pushDownLocs.clear();
 				boolean isBridge = (region.getTileSetting(1, localX, localY) & 2) != 0;
 
-				if (isBridge && !debugMap) return;
-
 				int tileZ = z + (isBridge ? 1 : 0);
 
 				for (Location loc : region.getLocations())
 				{
 					Position pos = loc.getPosition();
-					if (pos.getX() != regionX || pos.getY() != regionY)
-					{
-						continue;
-					}
+					if (pos.getX() != regionX || pos.getY() != regionY) continue;
 
 					if (pos.getZ() == tileZ && (region.getTileSetting(z, localX, localY) & 24) == 0)
-					{
 						planeLocs.add(loc);
-					}
 					else if (z < 3 && pos.getZ() == tileZ + 1 && (region.getTileSetting(z + 1, localX, localY) & 8) != 0)
-					{
 						pushDownLocs.add(loc);
-					}
 				}
 
 				for (List<Location> locs : layers)
@@ -661,6 +610,11 @@ public class SimbaCollisionMapDumper
 					for (Location location : locs)
 					{
 						int type = location.getType();
+						//22=ground textures (carpets, rubble, they are not visible on the mm afaik).
+						//9=something related to diagonal walls?
+						//10=trees, rocks, plants and objects you can interact with
+						//11=another type of tree and rocks. You can't interact I think
+
 						if (type >= 0 && type <= 3)
 						{
 							int rotation = location.getOrientation();
@@ -671,108 +625,45 @@ public class SimbaCollisionMapDumper
 							int drawY = (drawBaseY + (Region.Y - object.getSizeY() - localY)) * MAP_SCALE;
 
 							int rgb = collisionColor;
-							if (object.getWallOrDoor() != 0)
-							{
-								rgb = doorColor;
-							}
+							int doorColor = 0xFF0000;
+							if (object.getWallOrDoor() != 0) rgb = doorColor;
+
 							rgb |= 0xFF000000;
 
-							if (object.getMapSceneID() != -1)
-							{
-								blitMapDecoration(image, drawX, drawY, object, type);
-							}
-							else if (drawX >= 0 && drawY >= 0 && drawX < image.getWidth() && drawY < image.getHeight())
+							if (object.getMapSceneID() != -1) continue;
+
+							if (drawX >= 0 && drawY >= 0 && drawX < image.getWidth() && drawY < image.getHeight())
 							{
 								if (type == 0 || type == 2)
 								{
-									if (rotation == 0)
-									{
-										image.setRGB(drawX + 0, drawY + 0, rgb);
-										image.setRGB(drawX + 0, drawY + 1, rgb);
-										image.setRGB(drawX + 0, drawY + 2, rgb);
-										image.setRGB(drawX + 0, drawY + 3, rgb);
-									}
-									else if (rotation == 1)
-									{
-										image.setRGB(drawX + 0, drawY + 0, rgb);
-										image.setRGB(drawX + 1, drawY + 0, rgb);
-										image.setRGB(drawX + 2, drawY + 0, rgb);
-										image.setRGB(drawX + 3, drawY + 0, rgb);
-									}
-									else if (rotation == 2)
-									{
-										image.setRGB(drawX + 3, drawY + 0, rgb);
-										image.setRGB(drawX + 3, drawY + 1, rgb);
-										image.setRGB(drawX + 3, drawY + 2, rgb);
-										image.setRGB(drawX + 3, drawY + 3, rgb);
-									}
-									else if (rotation == 3)
-									{
-										image.setRGB(drawX + 0, drawY + 3, rgb);
-										image.setRGB(drawX + 1, drawY + 3, rgb);
-										image.setRGB(drawX + 2, drawY + 3, rgb);
-										image.setRGB(drawX + 3, drawY + 3, rgb);
+									for (int i = 0; i < MAP_SCALE; i++) {
+										if (rotation == 0)      image.setRGB(drawX, drawY + i, rgb);
+										else if (rotation == 1) image.setRGB(drawX + i, drawY, rgb);
+										else if (rotation == 2) image.setRGB(drawX + MAP_SCALE-1, drawY + i, rgb);
+										else if (rotation == 3) image.setRGB(drawX + i, drawY + MAP_SCALE-1, rgb);
 									}
 								}
 
 								if (type == 3)
 								{
-									if (rotation == 0)
-									{
-										image.setRGB(drawX + 0, drawY + 0, rgb);
-									}
-									else if (rotation == 1)
-									{
-										image.setRGB(drawX + 3, drawY + 0, rgb);
-									}
-									else if (rotation == 2)
-									{
-										image.setRGB(drawX + 3, drawY + 3, rgb);
-									}
-									else if (rotation == 3)
-									{
-										image.setRGB(drawX + 0, drawY + 3, rgb);
-									}
+									if (rotation == 0)      image.setRGB(drawX, drawY, rgb);
+									else if (rotation == 1) image.setRGB(drawX + MAP_SCALE - 1, drawY, rgb);
+									else if (rotation == 2) image.setRGB(drawX + MAP_SCALE - 1, drawY + MAP_SCALE - 1, rgb);
+									else if (rotation == 3) image.setRGB(drawX, drawY + MAP_SCALE - 1, rgb);
 								}
 
 								if (type == 2)
 								{
-									if (rotation == 3)
-									{
-										image.setRGB(drawX + 0, drawY + 0, rgb);
-										image.setRGB(drawX + 0, drawY + 1, rgb);
-										image.setRGB(drawX + 0, drawY + 2, rgb);
-										image.setRGB(drawX + 0, drawY + 3, rgb);
-									}
-									else if (rotation == 0)
-									{
-										image.setRGB(drawX + 0, drawY + 0, rgb);
-										image.setRGB(drawX + 1, drawY + 0, rgb);
-										image.setRGB(drawX + 2, drawY + 0, rgb);
-										image.setRGB(drawX + 3, drawY + 0, rgb);
-									}
-									else if (rotation == 1)
-									{
-										image.setRGB(drawX + 3, drawY + 0, rgb);
-										image.setRGB(drawX + 3, drawY + 1, rgb);
-										image.setRGB(drawX + 3, drawY + 2, rgb);
-										image.setRGB(drawX + 3, drawY + 3, rgb);
-									}
-									else if (rotation == 2)
-									{
-										image.setRGB(drawX + 0, drawY + 3, rgb);
-										image.setRGB(drawX + 1, drawY + 3, rgb);
-										image.setRGB(drawX + 2, drawY + 3, rgb);
-										image.setRGB(drawX + 3, drawY + 3, rgb);
+									for (int i = 0; i < MAP_SCALE; i++) {
+										if (rotation == 0)      image.setRGB(drawX + i, drawY, rgb);
+										else if (rotation == 1) image.setRGB(drawX + MAP_SCALE-1, drawY + i, rgb);
+										else if (rotation == 2) image.setRGB(drawX + i, drawY + MAP_SCALE-1, rgb);
+										else if (rotation == 3) image.setRGB(drawX, drawY + i, rgb);
 									}
 								}
 							}
 						}
-					}
 
-					for (Location location : locs)
-					{
-						int type = location.getType();
 						if (type == 9)
 						{
 							ObjectDefinition object = findObject(location.getId());
@@ -782,122 +673,77 @@ public class SimbaCollisionMapDumper
 
 							if (drawX >= 0 && drawY >= 0 && drawX < image.getWidth() && drawY < image.getHeight())
 							{
-								image.setRGB(drawX + 0, drawY + 0, collisionColor);
-								image.setRGB(drawX + 0, drawY + 1, collisionColor);
-								image.setRGB(drawX + 0, drawY + 2, collisionColor);
-								image.setRGB(drawX + 0, drawY + 3, collisionColor);
-
-								image.setRGB(drawX + 1, drawY + 0, collisionColor);
-								image.setRGB(drawX + 1, drawY + 1, collisionColor);
-								image.setRGB(drawX + 1, drawY + 2, collisionColor);
-								image.setRGB(drawX + 1, drawY + 3, collisionColor);
-
-								image.setRGB(drawX + 2, drawY + 0, collisionColor);
-								image.setRGB(drawX + 2, drawY + 1, collisionColor);
-								image.setRGB(drawX + 2, drawY + 2, collisionColor);
-								image.setRGB(drawX + 2, drawY + 3, collisionColor);
-
-								image.setRGB(drawX + 3, drawY + 0, collisionColor);
-								image.setRGB(drawX + 3, drawY + 1, collisionColor);
-								image.setRGB(drawX + 3, drawY + 2, collisionColor);
-								image.setRGB(drawX + 3, drawY + 3, collisionColor);
+								for (int x = 0; x < MAP_SCALE; x++) {
+									for (int y = 0; y < MAP_SCALE; y++) {
+										image.setRGB(drawX + x, drawY + y, collisionColor);
+									}
+								}
 							}
 						}
-					}
 
-					for (Location location : locs)
-					{
-						int type = location.getType();
-						//22=ground textures (carpets, rubble, they are not visible on the mm afaik).
-						//9=something related to diagonal walls?
-						//10=trees and rocks
-						//11=another type of tree and rocks.
-						if (type == 22 || (type >= 9 && type <= 11))
+						if (type > 9 && type <= 11)
 						{
 							ObjectDefinition object = findObject(location.getId());
 
 							int drawX = (drawBaseX + localX) * MAP_SCALE;
 							int drawY = (drawBaseY + (Region.Y - object.getSizeY() - localY)) * MAP_SCALE;
 
-							if (object.getMapSceneID() != -1)
-							{
-								blitMapDecoration(image, drawX, drawY, object, type);
+							if (object.getInteractType() == 0) continue;
+
+							if ((type == 10) || (type == 11)) {
+								int rotation = location.getOrientation();
+
+								if (object.getSizeX() == object.getSizeY()) {
+									for (int sX = 0; sX < object.getSizeX(); sX++) {
+										for (int sY = 0; sY < object.getSizeY(); sY++) {
+											for (int n = 0; n < 4; n++) {
+												for (int l = 0; l < 4; l++) {
+													image.setRGB(drawX + n + sX * MAP_SCALE, drawY + l + sY * MAP_SCALE, collisionColor);
+												}
+											}
+										}
+									}
+									continue;
+								}
+
+								if (rotation == 0 || rotation == 2) {
+									for (int sX = 0; sX < object.getSizeX(); sX++) {
+										for (int sY = 0; sY < object.getSizeY(); sY++) {
+											paintTile(image, drawX + sX * MAP_SCALE, drawY + sY * MAP_SCALE, collisionColor);
+										}
+									}
+								}
+
+								else {
+									//Don't ask questions about this, just accept it as a fact.
+									if (object.getSizeX() < object.getSizeY()) {
+										for (int sX = 0; sX < object.getSizeX(); sX++) {
+											for (int sY = 0; sY < object.getSizeY(); sY++) {
+												paintTile(image, drawX + sX * MAP_SCALE, drawY + sY * MAP_SCALE + MAP_SCALE, collisionColor);
+											}
+										}
+									}
+									else {
+										int centerY;
+
+										if (object.getSizeY() > 2) centerY = drawY - MAP_SCALE;
+										else centerY = drawY;
+
+										for (int sX = 0; sX < object.getSizeY(); sX++) {
+											for (int sY = 0; sY < object.getSizeX() / 2; sY++) {
+												paintTile(image, drawX + sX * MAP_SCALE, centerY + sY * MAP_SCALE, collisionColor);
+												paintTile(image, drawX + sX * MAP_SCALE, centerY - sY * MAP_SCALE - MAP_SCALE, collisionColor);
+											}
+										}
+										//image.setRGB(drawX + object.getSizeY() * MAP_SCALE/2, drawY - MAP_SCALE, 0xFFFFFF);
+									}
+								}
 							}
 						}
+
 					}
 				}
 			}
-		}
-	}
-
-	private void drawObjects(BufferedImage image, int z)
-	{
-		for (Region region : regionLoader.getRegions())
-		{
-			int baseX = region.getBaseX();
-			int baseY = region.getBaseY();
-
-			// to pixel X
-			int drawBaseX = baseX - regionLoader.getLowestX().getBaseX();
-
-			// to pixel Y. top most y is 0, but the top most
-			// region has the greatest y, so invert
-			int drawBaseY = regionLoader.getHighestY().getBaseY() - baseY;
-
-			drawObjects(image, drawBaseX, drawBaseY, region, z);
-		}
-	}
-
-	private void drawMapIcons(BufferedImage image, int drawBaseX, int drawBaseY, Region region, int z, File outDir)
-	{
-		int baseX = region.getBaseX();
-		int baseY = region.getBaseY();
-
-		Graphics2D graphics = image.createGraphics();
-
-		if (labelRegions)
-		{
-			graphics.setColor(Color.WHITE);
-			String str = baseX + "," + baseY + " (" + region.getRegionX() + "," + region.getRegionY() + ")";
-			graphics.drawString(str, drawBaseX * MAP_SCALE, drawBaseY * MAP_SCALE + graphics.getFontMetrics().getHeight());
-		}
-
-		if (outlineRegions)
-		{
-			graphics.setColor(Color.WHITE);
-			graphics.drawRect(drawBaseX * MAP_SCALE, drawBaseY * MAP_SCALE, Region.X * MAP_SCALE, Region.Y * MAP_SCALE);
-		}
-
-		graphics.dispose();
-
-		if (exportChunks) {
-			try {
-
-				BufferedImage chunk = image.getSubimage(drawBaseX * MAP_SCALE, drawBaseY * MAP_SCALE, Region.X * MAP_SCALE, Region.Y * MAP_SCALE);
-				File imageFile = new File(outDir, region.getRegionY() + "-" + region.getRegionX() + ".png");
-				ImageIO.write(chunk, "png", imageFile);
-			} catch (IOException e) {
-				throw new RuntimeException(e);
-			}
-		}
-	}
-
-	private void drawMapIcons(BufferedImage image, int z, File outDir)
-	{
-		// map icons
-		for (Region region : regionLoader.getRegions())
-		{
-			int baseX = region.getBaseX();
-			int baseY = region.getBaseY();
-
-			// to pixel X
-			int drawBaseX = baseX - regionLoader.getLowestX().getBaseX();
-
-			// to pixel Y. top most y is 0, but the top most
-			// region has the greatest y, so invert
-			int drawBaseY = regionLoader.getHighestY().getBaseY() - baseY;
-
-			drawMapIcons(image, drawBaseX, drawBaseY, region, z, outDir);
 		}
 	}
 
@@ -908,25 +754,10 @@ public class SimbaCollisionMapDumper
 
 	private int packHsl(int var0, int var1, int var2)
 	{
-		if (var2 > 179)
-		{
-			var1 /= 2;
-		}
-
-		if (var2 > 192)
-		{
-			var1 /= 2;
-		}
-
-		if (var2 > 217)
-		{
-			var1 /= 2;
-		}
-
-		if (var2 > 243)
-		{
-			var1 /= 2;
-		}
+		if (var2 > 179) var1 /= 2;
+		if (var2 > 192) var1 /= 2;
+		if (var2 > 217) var1 /= 2;
+		if (var2 > 243) var1 /= 2;
 
 		int var3 = (var1 / 32 << 7) + (var0 / 4 << 10) + var2 / 2;
 		return var3;
@@ -934,59 +765,32 @@ public class SimbaCollisionMapDumper
 
 	static int method1792(int var0, int var1)
 	{
-		if (var0 == -1)
-		{
-			return 12345678;
-		}
-		else
-		{
-			var1 = (var0 & 127) * var1 / 128;
-			if (var1 < 2)
-			{
-				var1 = 2;
-			}
-			else if (var1 > 126)
-			{
-				var1 = 126;
-			}
+		if (var0 == -1) return 12345678;
 
-			return (var0 & 65408) + var1;
-		}
+		var1 = (var0 & 127) * var1 / 128;
+		if (var1 < 2) var1 = 2;
+		else if (var1 > 126) var1 = 126;
+
+		return (var0 & 65408) + var1;
 	}
 
 	static final int adjustHSLListness0(int var0, int var1)
 	{
-		if (var0 == -2)
+		if (var0 == -2) return 12345678;
+
+		if (var0 == -1)
 		{
-			return 12345678;
-		}
-		else if (var0 == -1)
-		{
-			if (var1 < 2)
-			{
-				var1 = 2;
-			}
-			else if (var1 > 126)
-			{
-				var1 = 126;
-			}
+			if (var1 < 2) var1 = 2;
+			else if (var1 > 126) var1 = 126;
 
 			return var1;
 		}
-		else
-		{
-			var1 = (var0 & 127) * var1 / 128;
-			if (var1 < 2)
-			{
-				var1 = 2;
-			}
-			else if (var1 > 126)
-			{
-				var1 = 126;
-			}
 
-			return (var0 & 65408) + var1;
-		}
+		var1 = (var0 & 127) * var1 / 128;
+		if (var1 < 2) var1 = 2;
+		else if (var1 > 126) var1 = 126;
+
+		return (var0 & 65408) + var1;
 	}
 
 	private void drawMapSquare(int[][] pixels, int x, int y, int rgb)
@@ -995,12 +799,8 @@ public class SimbaCollisionMapDumper
 		y *= MAP_SCALE;
 
 		for (int i = 0; i < MAP_SCALE; ++i)
-		{
 			for (int j = 0; j < MAP_SCALE; ++j)
-			{
 				pixels[x + i][y + j] = rgb;
-			}
-		}
 	}
 
 	private void loadRegions() throws IOException
@@ -1068,106 +868,6 @@ public class SimbaCollisionMapDumper
 		byte[] contents = a.decompress(storage.loadArchive(a));
 
 		SpriteLoader loader = new SpriteLoader();
-		mapDecorations = loader.load(a.getArchiveId(), contents);
-	}
-
-	private void blitMapDecoration(BufferedImage dst, int x, int y, ObjectDefinition object, int type)
-	{
-		//boolean isCollision = ((object.getId() == 773) || (object.getId() == 771) || (object.getId() == 774) || (object.getId() == 772));
-
-		boolean isCollision = object.isObstructsGround() || !object.isHollow();
-		if (object.getInteractType() == 0) return; //no collision objects.
-		
-		int index = -1;
-		if (object.getId() == 10820) index = 0;//Oak Tree
-		if (object.getId() == 10819) index = 1;//willow tree
-
-		if (index > -1) {
-			for (int i = -1; i < object.getSizeX() + 1; i++)
-			{
-				for (int j = -1; j < object.getSizeY() + 1; j++)
-				{
-					dst.setRGB(x + i * MAP_SCALE, y + j * MAP_SCALE, debugColors[index]);
-					dst.setRGB(x + i * MAP_SCALE, y + 1 + j * MAP_SCALE, debugColors[index]);
-					dst.setRGB(x + i * MAP_SCALE, y + 2 + j * MAP_SCALE, debugColors[index]);
-					dst.setRGB(x + i * MAP_SCALE, y + 3 + j * MAP_SCALE, debugColors[index]);
-
-					dst.setRGB(x + 1 + i * MAP_SCALE, y + j * MAP_SCALE, debugColors[index]);
-					dst.setRGB(x + 1 + i * MAP_SCALE, y + 1 + j * MAP_SCALE, debugColors[index]);
-					dst.setRGB(x + 1 + i * MAP_SCALE, y + 2 + j * MAP_SCALE, debugColors[index]);
-					dst.setRGB(x + 1 + i * MAP_SCALE, y + 3 + j * MAP_SCALE, debugColors[index]);
-
-					dst.setRGB(x + 2 + i * MAP_SCALE, y + j * MAP_SCALE, debugColors[index]);
-					dst.setRGB(x + 2 + i * MAP_SCALE, y + 1 + j * MAP_SCALE, debugColors[index]);
-					dst.setRGB(x + 2 + i * MAP_SCALE, y + 2 + j * MAP_SCALE, debugColors[index]);
-					dst.setRGB(x + 2 + i * MAP_SCALE, y + 3 + j * MAP_SCALE, debugColors[index]);
-
-					dst.setRGB(x + 3 + i * MAP_SCALE, y + j * MAP_SCALE, debugColors[index]);
-					dst.setRGB(x + 3 + i * MAP_SCALE, y + 1 + j * MAP_SCALE, debugColors[index]);
-					dst.setRGB(x + 3 + i * MAP_SCALE, y + 2 + j * MAP_SCALE, debugColors[index]);
-					dst.setRGB(x + 3 + i * MAP_SCALE, y + 3 + j * MAP_SCALE, debugColors[index]);
-				}
-			}
-			return;
-		}
-
-		if (isCollision || (type == 10) || (type == 11)) {
-			for (int i = isCollision ? -1 : 0; i < (isCollision ? object.getSizeX() + 1 : object.getSizeX()); i++)
-			{
-				for (int j = isCollision ? -1 : 0; j < (isCollision ? object.getSizeY() + 1: object.getSizeX()); j++)
-				{
-					dst.setRGB(x + i * MAP_SCALE, y + j * MAP_SCALE, collisionColor);
-					dst.setRGB(x + i * MAP_SCALE, y + 1 + j * MAP_SCALE, collisionColor);
-					dst.setRGB(x + i * MAP_SCALE, y + 2 + j * MAP_SCALE, collisionColor);
-					dst.setRGB(x + i * MAP_SCALE, y + 3 + j * MAP_SCALE, collisionColor);
-
-					dst.setRGB(x + 1 + i * MAP_SCALE, y + j * MAP_SCALE, collisionColor);
-					dst.setRGB(x + 1 + i * MAP_SCALE, y + 1 + j * MAP_SCALE, collisionColor);
-					dst.setRGB(x + 1 + i * MAP_SCALE, y + 2 + j * MAP_SCALE, collisionColor);
-					dst.setRGB(x + 1 + i * MAP_SCALE, y + 3 + j * MAP_SCALE, collisionColor);
-
-					dst.setRGB(x + 2 + i * MAP_SCALE, y + j * MAP_SCALE, collisionColor);
-					dst.setRGB(x + 2 + i * MAP_SCALE, y + 1 + j * MAP_SCALE, collisionColor);
-					dst.setRGB(x + 2 + i * MAP_SCALE, y + 2 + j * MAP_SCALE, collisionColor);
-					dst.setRGB(x + 2 + i * MAP_SCALE, y + 3 + j * MAP_SCALE, collisionColor);
-
-					dst.setRGB(x + 3 + i * MAP_SCALE, y + j * MAP_SCALE, collisionColor);
-					dst.setRGB(x + 3 + i * MAP_SCALE, y + 1 + j * MAP_SCALE, collisionColor);
-					dst.setRGB(x + 3 + i * MAP_SCALE, y + 2 + j * MAP_SCALE, collisionColor);
-					dst.setRGB(x + 3 + i * MAP_SCALE, y + 3 + j * MAP_SCALE, collisionColor);
-				}
-			}
-			return;
-		}
-
-		SpriteDefinition sprite = mapDecorations[object.getMapSceneID()];
-		int ox = (object.getSizeX() * MAP_SCALE - sprite.getWidth()) / 2;
-		int oy = (object.getSizeY() * MAP_SCALE - sprite.getHeight()) / 2;
-
-		blitIcon(dst, x + ox, y + oy, sprite);
-	}
-
-	private void blitIcon(BufferedImage dst, int x, int y, SpriteDefinition sprite)
-	{
-		x += sprite.getOffsetX();
-		y += sprite.getOffsetY();
-
-		int ymin = Math.max(0, -y);
-		int ymax = Math.min(sprite.getHeight(), dst.getHeight() - y);
-
-		int xmin = Math.max(0, -x);
-		int xmax = Math.min(sprite.getWidth(), dst.getWidth() - x);
-
-		for (int yo = ymin; yo < ymax; yo++)
-		{
-			for (int xo = xmin; xo < xmax; xo++)
-			{
-				int rgb = sprite.getPixels()[xo + (yo * sprite.getWidth())];
-				if (rgb != 0)
-				{
-					dst.setRGB(x + xo, y + yo, rgb | 0xFF000000);
-				}
-			}
-		}
+		SpriteDefinition[] mapDecorations = loader.load(a.getArchiveId(), contents);
 	}
 }
