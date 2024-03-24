@@ -66,7 +66,7 @@ public class SimbaHeightMapDumper
 		regionLoader.calculateBounds();
 	}
 
-	public BufferedImage drawHeightMap(int z, File outDir)
+	public BufferedImage drawRegions(int z, File outDir)
 	{
 		int minX = regionLoader.getLowestX().getBaseX();
 		int minY = regionLoader.getLowestY().getBaseY();
@@ -217,15 +217,13 @@ public class SimbaHeightMapDumper
 
 
 			File mapDir = new File(outputDirectory + File.separator + "chunks");
-			mapDir.mkdirs();
-			BufferedImage image = dumper.drawHeightMap(0, mapDir);
+			if (dumper.exportChunks) mapDir.mkdirs();
+			BufferedImage image = dumper.drawRegions(0, mapDir);
 
 			File imageFile = new File(outDir, "img.png");
 
 			ImageIO.write(image, "png", imageFile);
 			log.info("Wrote image {}", imageFile);
-
-
 		}
 	}
 }

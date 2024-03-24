@@ -181,7 +181,7 @@ public class MapImageDumper
 
 			for (int i = 0; i < Region.Z; ++i)
 			{
-				BufferedImage image = dumper.drawMap(i);
+				BufferedImage image = dumper.drawRegions(i);
 
 				File imageFile = new File(outDir, "img-" + i + ".png");
 
@@ -221,7 +221,7 @@ public class MapImageDumper
 		return this;
 	}
 
-	public BufferedImage drawMap(int z)
+	public BufferedImage drawRegions(int z)
 	{
 		int minX = regionLoader.getLowestX().getBaseX();
 		int minY = regionLoader.getLowestY().getBaseY();
@@ -249,9 +249,7 @@ public class MapImageDumper
 			image = new BufferedImage(pixelsX, pixelsY, transparency ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
 		}
 
-		drawMap(image, z);
-		drawObjects(image, z);
-		drawMapIcons(image, z);
+		drawRegions(image, z);
 
 		return image;
 	}
@@ -329,24 +327,6 @@ public class MapImageDumper
 					}
 				}
 			}
-		}
-	}
-
-	private void drawMap(BufferedImage image, int z)
-	{
-		for (Region region : regionLoader.getRegions())
-		{
-			int baseX = region.getBaseX();
-			int baseY = region.getBaseY();
-
-			// to pixel X
-			int drawBaseX = baseX - regionLoader.getLowestX().getBaseX();
-
-			// to pixel Y. top most y is 0, but the top most
-			// region has the greatest y, so invert
-			int drawBaseY = regionLoader.getHighestY().getBaseY() - baseY;
-
-			drawMap(image, drawBaseX, drawBaseY, z, region);
 		}
 	}
 
@@ -856,24 +836,6 @@ public class MapImageDumper
 		}
 	}
 
-	private void drawObjects(BufferedImage image, int z)
-	{
-		for (Region region : regionLoader.getRegions())
-		{
-			int baseX = region.getBaseX();
-			int baseY = region.getBaseY();
-
-			// to pixel X
-			int drawBaseX = baseX - regionLoader.getLowestX().getBaseX();
-
-			// to pixel Y. top most y is 0, but the top most
-			// region has the greatest y, so invert
-			int drawBaseY = regionLoader.getHighestY().getBaseY() - baseY;
-
-			drawObjects(image, drawBaseX, drawBaseY, region, z);
-		}
-	}
-
 	private void drawMapIcons(BufferedImage image, int drawBaseX, int drawBaseY, Region region, int z)
 	{
 		int baseX = region.getBaseX();
@@ -899,9 +861,8 @@ public class MapImageDumper
 		graphics.dispose();
 	}
 
-	private void drawMapIcons(BufferedImage image, int z)
+	private void drawRegions(BufferedImage image, int z)
 	{
-		// map icons
 		for (Region region : regionLoader.getRegions())
 		{
 			int baseX = region.getBaseX();
@@ -914,6 +875,8 @@ public class MapImageDumper
 			// region has the greatest y, so invert
 			int drawBaseY = regionLoader.getHighestY().getBaseY() - baseY;
 
+			drawMap(image, drawBaseX, drawBaseY, z, region);
+			drawObjects(image, drawBaseX, drawBaseY, region, z);
 			drawMapIcons(image, drawBaseX, drawBaseY, region, z);
 		}
 	}

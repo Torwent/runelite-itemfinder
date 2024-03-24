@@ -65,7 +65,7 @@ public class MapImageDumperTest
 
 			for (int i = 0; i < Region.Z; ++i)
 			{
-				BufferedImage image = dumper.drawMap(i);
+				BufferedImage image = dumper.drawRegions(i);
 
 				File imageFile = new File(outDir, "img-" + i + ".png");
 

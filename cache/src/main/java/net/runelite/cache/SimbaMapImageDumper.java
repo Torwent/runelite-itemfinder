@@ -170,8 +170,8 @@ public class SimbaMapImageDumper
 			for (int i = 0; i < Region.Z; ++i)
 			{
 				File mapDir = new File(outputDirectory + File.separator + i);
-				mapDir.mkdirs();
-				BufferedImage image = dumper.drawMap(i, mapDir);
+				if (dumper.exportChunks) mapDir.mkdirs();
+				BufferedImage image = dumper.drawRegions(i, mapDir);
 
 				File imageFile = new File(outDir, "img-" + i + ".png");
 
@@ -211,7 +211,7 @@ public class SimbaMapImageDumper
 		return this;
 	}
 
-	public BufferedImage drawMap(int z, File outDir)
+	public BufferedImage drawRegions(int z, File outDir)
 	{
 		int minX = regionLoader.getLowestX().getBaseX();
 		int minY = regionLoader.getLowestY().getBaseY();
@@ -239,14 +239,43 @@ public class SimbaMapImageDumper
 			image = new BufferedImage(pixelsX, pixelsY, transparency ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
 		}
 
-		drawMap(image, z);
-		drawObjects(image, z);
-		drawMapIcons(image, z, outDir);
+		drawRegions(image, z, outDir);
 
 		return image;
 	}
 
-	private void drawMap(BufferedImage image, int drawBaseX, int drawBaseY, int z, Region region)
+	private void drawRegions(BufferedImage image, int z, File outDir)
+	{
+		for (Region region : regionLoader.getRegions())
+		{
+			int baseX = region.getBaseX();
+			int baseY = region.getBaseY();
+
+			// to pixel X
+			int drawBaseX = baseX - regionLoader.getLowestX().getBaseX();
+
+			// to pixel Y. top most y is 0, but the top most
+			// region has the greatest y, so invert
+			int drawBaseY = regionLoader.getHighestY().getBaseY() - baseY;
+
+			drawRegions(image, drawBaseX, drawBaseY, z, region);
+			drawObjects(image, drawBaseX, drawBaseY, region, z);
+			drawMapIcons(image, drawBaseX, drawBaseY, region, z);
+
+			if (exportChunks) {
+				try {
+
+					BufferedImage chunk = image.getSubimage(drawBaseX * MAP_SCALE, drawBaseY * MAP_SCALE, Region.X * MAP_SCALE, Region.Y * MAP_SCALE);
+					File imageFile = new File(outDir, region.getRegionY() + "-" + region.getRegionX() + ".png");
+					ImageIO.write(chunk, "png", imageFile);
+				} catch (IOException e) {
+					throw new RuntimeException(e);
+				}
+			}
+		}
+	}
+
+	private void drawRegions(BufferedImage image, int drawBaseX, int drawBaseY, int z, Region region)
 	{
 		if (!renderMap)
 		{
@@ -288,24 +317,6 @@ public class SimbaMapImageDumper
 		}
 	}
 
-	private void drawMap(BufferedImage image, int z)
-	{
-		for (Region region : regionLoader.getRegions())
-		{
-			int baseX = region.getBaseX();
-			int baseY = region.getBaseY();
-
-			// to pixel X
-			int drawBaseX = baseX - regionLoader.getLowestX().getBaseX();
-
-			// to pixel Y. top most y is 0, but the top most
-			// region has the greatest y, so invert
-			int drawBaseY = regionLoader.getHighestY().getBaseY() - baseY;
-
-			drawMap(image, drawBaseX, drawBaseY, z, region);
-		}
-	}
-
 	private void drawTile(BufferedImage to, int[][][] planes, Region region, int drawBaseX, int drawBaseY, int z, int x, int y)
 	{
 		int[][] pixels = planes[z];
@@ -313,7 +324,7 @@ public class SimbaMapImageDumper
 		if (pixels == null)
 		{
 			pixels = planes[z] = new int[Region.X * MAP_SCALE][Region.Y * MAP_SCALE];
-			drawMap(pixels, region, z);
+			drawRegions(pixels, region, z);
 		}
 
 		for (int i = 0; i < MAP_SCALE; ++i)
@@ -331,7 +342,7 @@ public class SimbaMapImageDumper
 		}
 	}
 
-	private void drawMap(int[][] pixels, Region region, int z)
+	private void drawRegions(int[][] pixels, Region region, int z)
 	{
 		int baseX = region.getBaseX();
 		int baseY = region.getBaseY();
@@ -745,11 +756,7 @@ public class SimbaMapImageDumper
 								}
 							}
 						}
-					}
 
-					for (Location location : locs)
-					{
-						int type = location.getType();
 						if (type == 9)
 						{
 							int rotation = location.getOrientation();
@@ -789,11 +796,7 @@ public class SimbaMapImageDumper
 								}
 							}
 						}
-					}
 
-					for (Location location : locs)
-					{
-						int type = location.getType();
 						if (type == 22 || (type >= 9 && type <= 11))
 						{
 							ObjectDefinition object = findObject(location.getId());
@@ -812,25 +815,7 @@ public class SimbaMapImageDumper
 		}
 	}
 
-	private void drawObjects(BufferedImage image, int z)
-	{
-		for (Region region : regionLoader.getRegions())
-		{
-			int baseX = region.getBaseX();
-			int baseY = region.getBaseY();
-
-			// to pixel X
-			int drawBaseX = baseX - regionLoader.getLowestX().getBaseX();
-
-			// to pixel Y. top most y is 0, but the top most
-			// region has the greatest y, so invert
-			int drawBaseY = regionLoader.getHighestY().getBaseY() - baseY;
-
-			drawObjects(image, drawBaseX, drawBaseY, region, z);
-		}
-	}
-
-	private void drawMapIcons(BufferedImage image, int drawBaseX, int drawBaseY, Region region, int z, File outDir)
+	private void drawMapIcons(BufferedImage image, int drawBaseX, int drawBaseY, Region region, int z)
 	{
 		int baseX = region.getBaseX();
 		int baseY = region.getBaseY();
@@ -853,36 +838,6 @@ public class SimbaMapImageDumper
 		}
 
 		graphics.dispose();
-
-		if (exportChunks) {
-			try {
-
-				BufferedImage chunk = image.getSubimage(drawBaseX * MAP_SCALE, drawBaseY * MAP_SCALE, Region.X * MAP_SCALE, Region.Y * MAP_SCALE);
-				File imageFile = new File(outDir, region.getRegionY() + "-" + region.getRegionX() + ".png");
-				ImageIO.write(chunk, "png", imageFile);
-			} catch (IOException e) {
-				throw new RuntimeException(e);
-			}
-		}
-	}
-
-	private void drawMapIcons(BufferedImage image, int z, File outDir)
-	{
-		// map icons
-		for (Region region : regionLoader.getRegions())
-		{
-			int baseX = region.getBaseX();
-			int baseY = region.getBaseY();
-
-			// to pixel X
-			int drawBaseX = baseX - regionLoader.getLowestX().getBaseX();
-
-			// to pixel Y. top most y is 0, but the top most
-			// region has the greatest y, so invert
-			int drawBaseY = regionLoader.getHighestY().getBaseY() - baseY;
-
-			drawMapIcons(image, drawBaseX, drawBaseY, region, z, outDir);
-		}
 	}
 
 	private ObjectDefinition findObject(int id)
