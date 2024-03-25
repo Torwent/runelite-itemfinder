@@ -64,8 +64,8 @@ public class SimbaCollisionMapDumper
 	private static int[][] TILE_SHAPE_2D = new int[][]{{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, {1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1}, {1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0}, {0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1}, {0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, {1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1}, {1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0}, {1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1}, {1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1}, {0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1}};
 	private static int[][] TILE_ROTATION_2D = new int[][]{{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, {12, 8, 4, 0, 13, 9, 5, 1, 14, 10, 6, 2, 15, 11, 7, 3}, {15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}, {3, 7, 11, 15, 2, 6, 10, 14, 1, 5, 9, 13, 0, 4, 8, 12}};
 
-	private static final int collisionColor = 0x000000;
-	private static final int walkableColor = 0xFFFFFF;
+	private static final int collisionColor = 0xFF000000;
+	private static final int walkableColor = 0xFFFFFFFF;
 
 	private final Store store;
 
@@ -229,6 +229,15 @@ public class SimbaCollisionMapDumper
 		return image;
 	}
 
+	public static boolean isImageEmpty(BufferedImage img) {
+		int color = img.getRGB(0,0);
+		for (int y = 1; y < img.getHeight(); y++)
+			for (int x = 0; x < img.getWidth(); x++)
+				if (img.getRGB(x, y) != color)
+					return false;
+		return true;
+	}
+
 	private void drawRegions(BufferedImage image, int z, File outDir)
 	{
 		for (Region region : regionLoader.getRegions())
@@ -249,8 +258,10 @@ public class SimbaCollisionMapDumper
 			if (exportChunks) {
 				try {
 					BufferedImage chunk = image.getSubimage(drawBaseX * MAP_SCALE, drawBaseY * MAP_SCALE, Region.X * MAP_SCALE, Region.Y * MAP_SCALE);
-					File imageFile = new File(outDir, region.getRegionY() + "-" + region.getRegionX() + ".png");
-					ImageIO.write(chunk, "png", imageFile);
+					if (!isImageEmpty(chunk)) {
+						File imageFile = new File(outDir, region.getRegionX() + "-" + region.getRegionY() + ".png");
+						ImageIO.write(chunk, "png", imageFile);
+					}
 				} catch (IOException e) {
 					throw new RuntimeException(e);
 				}
@@ -508,48 +519,17 @@ public class SimbaCollisionMapDumper
 									if (underlayRgb != 0)
 									{
 										int rotIdx = 0;
-										for (int i = 0; i < Region.Z; ++i)
-										{
-											int p1 = tileShapes[tileRotations[rotIdx++]] == 0 ? underlayRgb : overlayRgb;
-											int p2 = tileShapes[tileRotations[rotIdx++]] == 0 ? underlayRgb : overlayRgb;
-											int p3 = tileShapes[tileRotations[rotIdx++]] == 0 ? underlayRgb : overlayRgb;
-											int p4 = tileShapes[tileRotations[rotIdx++]] == 0 ? underlayRgb : overlayRgb;
-											pixels[drawX + 0][drawY + i] = p1;
-											pixels[drawX + 1][drawY + i] = p2;
-											pixels[drawX + 2][drawY + i] = p3;
-											pixels[drawX + 3][drawY + i] = p4;
-										}
+										for (int i = 0; i < MAP_SCALE; ++i)
+											for (int j = 0; j < MAP_SCALE; j++)
+												pixels[drawX + j][drawY + i] = tileShapes[tileRotations[rotIdx++]] == 0 ? underlayRgb : overlayRgb;
 									}
 									else
 									{
 										int rotIdx = 0;
-										for (int i = 0; i < Region.Z; ++i)
-										{
-											int p1 = tileShapes[tileRotations[rotIdx++]];
-											int p2 = tileShapes[tileRotations[rotIdx++]];
-											int p3 = tileShapes[tileRotations[rotIdx++]];
-											int p4 = tileShapes[tileRotations[rotIdx++]];
-
-											if (p1 != 0)
-											{
-												pixels[drawX + 0][drawY + i] = overlayRgb;
-											}
-
-											if (p2 != 0)
-											{
-												pixels[drawX + 1][drawY + i] = overlayRgb;
-											}
-
-											if (p3 != 0)
-											{
-												pixels[drawX + 2][drawY + i] = overlayRgb;
-											}
-
-											if (p4 != 0)
-											{
-												pixels[drawX + 3][drawY + i] = overlayRgb;
-											}
-										}
+										for (int i = 0; i < MAP_SCALE; ++i)
+											for (int j = 0; j < MAP_SCALE; j++)
+												if (tileShapes[tileRotations[rotIdx++]] != 0)
+													pixels[drawX + j][drawY + i] = overlayRgb;
 									}
 								}
 							}
@@ -696,8 +676,8 @@ public class SimbaCollisionMapDumper
 								if (object.getSizeX() == object.getSizeY()) {
 									for (int sX = 0; sX < object.getSizeX(); sX++) {
 										for (int sY = 0; sY < object.getSizeY(); sY++) {
-											for (int n = 0; n < 4; n++) {
-												for (int l = 0; l < 4; l++) {
+											for (int n = 0; n < MAP_SCALE; n++) {
+												for (int l = 0; l < MAP_SCALE; l++) {
 													image.setRGB(drawX + n + sX * MAP_SCALE, drawY + l + sY * MAP_SCALE, collisionColor);
 												}
 											}

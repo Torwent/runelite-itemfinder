@@ -106,7 +106,7 @@ public class SimbaMapImageDumper
 
 	@Getter
 	@Setter
-	private boolean lowMemory = true;
+	private boolean lowMemory = false;
 
 	public SimbaMapImageDumper(Store store, KeyProvider keyProvider)
 	{
@@ -244,6 +244,14 @@ public class SimbaMapImageDumper
 		return image;
 	}
 
+	public static boolean isImageEmpty(BufferedImage img) {
+		int color = img.getRGB(0,0);
+		for (int y = 1; y < img.getHeight(); y++)
+			for (int x = 0; x < img.getWidth(); x++)
+				if (img.getRGB(x, y) != color)
+					return false;
+		return true;
+	}
 	private void drawRegions(BufferedImage image, int z, File outDir)
 	{
 		for (Region region : regionLoader.getRegions())
@@ -264,10 +272,11 @@ public class SimbaMapImageDumper
 
 			if (exportChunks) {
 				try {
-
 					BufferedImage chunk = image.getSubimage(drawBaseX * MAP_SCALE, drawBaseY * MAP_SCALE, Region.X * MAP_SCALE, Region.Y * MAP_SCALE);
-					File imageFile = new File(outDir, region.getRegionY() + "-" + region.getRegionX() + ".png");
-					ImageIO.write(chunk, "png", imageFile);
+					if (!isImageEmpty(chunk)) {
+						File imageFile = new File(outDir, region.getRegionX() + "-" + region.getRegionY() + ".png");
+						ImageIO.write(chunk, "png", imageFile);
+					}
 				} catch (IOException e) {
 					throw new RuntimeException(e);
 				}
@@ -540,48 +549,17 @@ public class SimbaMapImageDumper
 									if (underlayRgb != 0)
 									{
 										int rotIdx = 0;
-										for (int i = 0; i < Region.Z; ++i)
-										{
-											int p1 = tileShapes[tileRotations[rotIdx++]] == 0 ? underlayRgb : overlayRgb;
-											int p2 = tileShapes[tileRotations[rotIdx++]] == 0 ? underlayRgb : overlayRgb;
-											int p3 = tileShapes[tileRotations[rotIdx++]] == 0 ? underlayRgb : overlayRgb;
-											int p4 = tileShapes[tileRotations[rotIdx++]] == 0 ? underlayRgb : overlayRgb;
-											pixels[drawX + 0][drawY + i] = p1;
-											pixels[drawX + 1][drawY + i] = p2;
-											pixels[drawX + 2][drawY + i] = p3;
-											pixels[drawX + 3][drawY + i] = p4;
-										}
+										for (int i = 0; i < MAP_SCALE; ++i)
+											for (int j = 0; j < MAP_SCALE; j++)
+												pixels[drawX + j][drawY + i] = tileShapes[tileRotations[rotIdx++]] == 0 ? underlayRgb : overlayRgb;
 									}
 									else
 									{
 										int rotIdx = 0;
-										for (int i = 0; i < Region.Z; ++i)
-										{
-											int p1 = tileShapes[tileRotations[rotIdx++]];
-											int p2 = tileShapes[tileRotations[rotIdx++]];
-											int p3 = tileShapes[tileRotations[rotIdx++]];
-											int p4 = tileShapes[tileRotations[rotIdx++]];
-
-											if (p1 != 0)
-											{
-												pixels[drawX + 0][drawY + i] = overlayRgb;
-											}
-
-											if (p2 != 0)
-											{
-												pixels[drawX + 1][drawY + i] = overlayRgb;
-											}
-
-											if (p3 != 0)
-											{
-												pixels[drawX + 2][drawY + i] = overlayRgb;
-											}
-
-											if (p4 != 0)
-											{
-												pixels[drawX + 3][drawY + i] = overlayRgb;
-											}
-										}
+										for (int i = 0; i < MAP_SCALE; ++i)
+											for (int j = 0; j < MAP_SCALE; j++)
+												if (tileShapes[tileRotations[rotIdx++]] != 0)
+													pixels[drawX + j][drawY + i] = overlayRgb;
 									}
 								}
 							}
@@ -864,20 +842,13 @@ public class SimbaMapImageDumper
 		y *= MAP_SCALE;
 
 		for (int i = 0; i < MAP_SCALE; ++i)
-		{
 			for (int j = 0; j < MAP_SCALE; ++j)
-			{
 				pixels[x + i][y + j] = rgb;
-			}
-		}
 	}
 
 	private void drawMapIcons(BufferedImage img, Region region, int z, int drawBaseX, int drawBaseY)
 	{
-		if (!renderIcons)
-		{
-			return;
-		}
+		if (!renderIcons) return;
 
 		for (Location location : region.getLocations())
 		{
@@ -887,11 +858,8 @@ public class SimbaMapImageDumper
 
 			int tileZ = z + (isBridge ? 1 : 0);
 			int localZ = location.getPosition().getZ();
-			if (z != 0 && localZ != tileZ)
-			{
-				// draw all icons on z=0
-				continue;
-			}
+
+			if (localZ != tileZ) continue; //don't redraw iconz from lower Z
 
 			ObjectDefinition od = findObject(location.getId());
 
@@ -1004,15 +972,12 @@ public class SimbaMapImageDumper
 		int xmax = Math.min(sprite.getWidth(), dst.getWidth() - x);
 
 		for (int yo = ymin; yo < ymax; yo++)
-		{
 			for (int xo = xmin; xo < xmax; xo++)
 			{
 				int rgb = sprite.getPixels()[xo + (yo * sprite.getWidth())];
 				if (rgb != 0)
-				{
 					dst.setRGB(x + xo, y + yo, rgb | 0xFF000000);
-				}
+
 			}
-		}
 	}
 }
