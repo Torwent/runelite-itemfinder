@@ -45,12 +45,9 @@ import java.io.IOException;
 public class SimbaHeightMapDumper
 {
 	private static final Logger logger = LoggerFactory.getLogger(SimbaHeightMapDumper.class);
-
-	private static final int MAP_SCALE = 4;
+	private static final int MAP_SCALE = 1;
 	private static final float MAX_HEIGHT = 2048f;
-
 	private boolean exportChunks = true;
-
 	private final Store store;
 	private RegionLoader regionLoader;
 
@@ -83,11 +80,19 @@ public class SimbaHeightMapDumper
 		logger.info("Map image dimensions: {}px x {}px, {}px per map square ({} MB)", dimX, dimY, MAP_SCALE, (dimX * dimY / 1024 / 1024));
 
 		BufferedImage image = new BufferedImage(dimX, dimY, BufferedImage.TYPE_INT_RGB);
-		draw(image, z, outDir);
+		drawRegions(image, z, outDir);
 		return image;
 	}
 
-	private void draw(BufferedImage image, int z, File outDir)
+	public static boolean isImageEmpty(BufferedImage img) {
+		for (int y = 0; y < img.getHeight(); y++)
+			for (int x = 0; x < img.getWidth(); x++)
+				if (img.getRGB(x, y) != 0xFF000000)
+					return false;
+		return true;
+	}
+
+	private void drawRegions(BufferedImage image, int z, File outDir)
 	{
 		int max = Integer.MIN_VALUE;
 		int min = Integer.MAX_VALUE;
@@ -107,7 +112,6 @@ public class SimbaHeightMapDumper
 			for (int x = 0; x < Region.X; ++x)
 			{
 				int drawX = drawBaseX + x;
-
 				for (int y = 0; y < Region.Y; ++y)
 				{
 					int drawY = drawBaseY + (Region.Y - 1 - y);
@@ -131,8 +135,11 @@ public class SimbaHeightMapDumper
 			if (exportChunks) {
 				try {
 					BufferedImage chunk = image.getSubimage(drawBaseX * MAP_SCALE, drawBaseY * MAP_SCALE, Region.X * MAP_SCALE, Region.Y * MAP_SCALE);
-					File imageFile = new File(outDir, region.getRegionY() + "-" + region.getRegionX() + ".png");
-					ImageIO.write(chunk, "png", imageFile);
+
+					if (!isImageEmpty(chunk)) {
+						File imageFile = new File(outDir, region.getRegionX() + "-" + region.getRegionY() + ".png");
+						ImageIO.write(chunk, "png", imageFile);
+					}
 				} catch (IOException e) {
 					throw new RuntimeException(e);
 				}
@@ -160,14 +167,9 @@ public class SimbaHeightMapDumper
 		y *= MAP_SCALE;
 
 		for (int i = 0; i < MAP_SCALE; ++i)
-		{
 			for (int j = 0; j < MAP_SCALE; ++j)
-			{
 				image.setRGB(x + i, y + j, rgb);
-			}
-		}
 	}
-
 
 	public static void main(String[] args) throws IOException
 	{
