@@ -105,7 +105,7 @@ public class ItemLoader
 		}
 		else if (opcode == 11)
 		{
-			def.stackable = 1;
+			def.stackable = true;
 		}
 		else if (opcode == 12)
 		{
@@ -189,7 +189,7 @@ public class ItemLoader
 		}
 		else if (opcode == 65)
 		{
-			def.isTradeable = true;
+			def.tradeable = true;
 		}
 		else if (opcode == 75)
 		{
@@ -319,7 +319,7 @@ public class ItemLoader
 
 	private void post(ItemDefinition def)
 	{
-		if (def.stackable == 1)
+		if (def.stackable == true)
 		{
 			def.weight = 0;
 		}

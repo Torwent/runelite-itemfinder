@@ -81,12 +81,14 @@ public class SimbaMapImageDumper
 
 	@Getter
 	@Setter
-	private boolean labelRegions;
+	private boolean labelRegions = false;
 
 	@Getter
 	@Setter
-	private boolean outlineRegions;
+	private boolean outlineRegions = false;
 	private boolean exportChunks = true;
+
+	private static boolean exportEmptyImages = true;
 
 	@Getter
 	@Setter
@@ -183,8 +185,7 @@ public class SimbaMapImageDumper
 
 	protected double random()
 	{
-		// the client would use a random value here, but we prefer determinism
-		return 0.5;
+		return 0.5; // the client would use a random value here, but we prefer determinism
 	}
 
 	public SimbaMapImageDumper setBrightness(double brightness)
@@ -269,11 +270,19 @@ public class SimbaMapImageDumper
 			drawRegions(image, drawBaseX, drawBaseY, z, region);
 			drawObjects(image, drawBaseX, drawBaseY, region, z);
 			drawMapIcons(image, drawBaseX, drawBaseY, region, z);
+		}
 
-			if (exportChunks) {
+		if (exportChunks) {
+			for (Region region : regionLoader.getRegions()) {
+				int baseX = region.getBaseX();
+				int baseY = region.getBaseY();
+
+				int drawBaseX = baseX - regionLoader.getLowestX().getBaseX();
+				int drawBaseY = regionLoader.getHighestY().getBaseY() - baseY;
+
 				try {
 					BufferedImage chunk = image.getSubimage(drawBaseX * MAP_SCALE, drawBaseY * MAP_SCALE, Region.X * MAP_SCALE, Region.Y * MAP_SCALE);
-					if (!isImageEmpty(chunk)) {
+					if (exportEmptyImages || !isImageEmpty(chunk)) {
 						File imageFile = new File(outDir, region.getRegionX() + "-" + region.getRegionY() + ".png");
 						ImageIO.write(chunk, "png", imageFile);
 					}
@@ -601,19 +610,12 @@ public class SimbaMapImageDumper
 				for (Location loc : region.getLocations())
 				{
 					Position pos = loc.getPosition();
-					if (pos.getX() != regionX || pos.getY() != regionY)
-					{
-						continue;
-					}
+					if (pos.getX() != regionX || pos.getY() != regionY) continue;
 
 					if (pos.getZ() == tileZ && (region.getTileSetting(z, localX, localY) & 24) == 0)
-					{
 						planeLocs.add(loc);
-					}
 					else if (z < 3 && pos.getZ() == tileZ + 1 && (region.getTileSetting(z + 1, localX, localY) & 8) != 0)
-					{
 						pushDownLocs.add(loc);
-					}
 				}
 
 				for (List<Location> locs : layers)

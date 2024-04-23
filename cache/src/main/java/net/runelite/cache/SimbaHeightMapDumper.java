@@ -48,6 +48,7 @@ public class SimbaHeightMapDumper
 	private static final int MAP_SCALE = 1;
 	private static final float MAX_HEIGHT = 2048f;
 	private boolean exportChunks = true;
+	private static boolean exportEmptyImages = true;
 	private final Store store;
 	private RegionLoader regionLoader;
 
@@ -85,6 +86,7 @@ public class SimbaHeightMapDumper
 	}
 
 	public static boolean isImageEmpty(BufferedImage img) {
+		if (exportEmptyImages) return false;
 		for (int y = 0; y < img.getHeight(); y++)
 			for (int x = 0; x < img.getWidth(); x++)
 				if (img.getRGB(x, y) != 0xFF000000)
@@ -171,6 +173,13 @@ public class SimbaHeightMapDumper
 				image.setRGB(x + i, y + j, rgb);
 	}
 
+	private static void dumpItems(Store store, File itemdir) throws IOException
+	{
+		ItemManager dumper = new ItemManager(store);
+		dumper.load();
+		dumper.export(itemdir);
+		dumper.java(itemdir);
+	}
 	public static void main(String[] args) throws IOException
 	{
 		Options options = new Options();

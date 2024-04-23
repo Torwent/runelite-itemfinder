@@ -79,7 +79,7 @@ public class SimbaCollisionMapDumper
 	private final ObjectManager objectManager;
 
 	private final boolean exportChunks = true;
-
+	private static boolean exportEmptyImages = true;
 	private static final boolean debugMap = false;
 
 	@Getter
@@ -230,6 +230,8 @@ public class SimbaCollisionMapDumper
 	}
 
 	public static boolean isImageEmpty(BufferedImage img) {
+		if (exportEmptyImages) return false;
+
 		int color = img.getRGB(0,0);
 		for (int y = 1; y < img.getHeight(); y++)
 			for (int x = 0; x < img.getWidth(); x++)
@@ -279,6 +281,9 @@ public class SimbaCollisionMapDumper
 		{
 			for (int y = 0; y < Region.Y; ++y)
 			{
+
+
+
 				boolean isBridge = (region.getTileSetting(1, x, Region.Y - y - 1) & 2) != 0;
 				int tileZ = z + (isBridge ? 1 : 0);
 				if (tileZ >= Region.Z) continue;
@@ -557,6 +562,9 @@ public class SimbaCollisionMapDumper
 	private void drawObjects(BufferedImage image, int drawBaseX, int drawBaseY, Region region, int z)
 	{
 		if (!renderObjects) return;
+		Set<Integer> gates = new HashSet<Integer>();
+		gates.add(9266);
+		gates.add(16784);
 
 		List<Location> planeLocs = new ArrayList<>();
 		List<Location> pushDownLocs = new ArrayList<>();
@@ -590,7 +598,15 @@ public class SimbaCollisionMapDumper
 					for (Location location : locs)
 					{
 						int type = location.getType();
+
+						ObjectDefinition object = findObject(location.getId());
+						if (gates.contains(object.getId())) continue;
+
 						//22=ground textures (carpets, rubble, they are not visible on the mm afaik).
+						//4=wall decorations (candles, etc) only some can be examined
+						//5=wall decorations (standards, flags, shields), can be examined
+						//6=
+						//7=wall decorations
 						//9=something related to diagonal walls?
 						//10=trees, rocks, plants and objects you can interact with
 						//11=another type of tree and rocks. You can't interact I think
@@ -598,9 +614,6 @@ public class SimbaCollisionMapDumper
 						if (type >= 0 && type <= 3)
 						{
 							int rotation = location.getOrientation();
-
-							ObjectDefinition object = findObject(location.getId());
-
 							int drawX = (drawBaseX + localX) * MAP_SCALE;
 							int drawY = (drawBaseY + (Region.Y - object.getSizeY() - localY)) * MAP_SCALE;
 
@@ -644,10 +657,7 @@ public class SimbaCollisionMapDumper
 							}
 						}
 
-						if (type == 9)
-						{
-							ObjectDefinition object = findObject(location.getId());
-
+						if (type < 0 || (type == 8) || (type > 11 && type < 22)) {
 							int drawX = (drawBaseX + localX) * MAP_SCALE;
 							int drawY = (drawBaseY + (Region.Y - object.getSizeY() - localY)) * MAP_SCALE;
 
@@ -661,62 +671,75 @@ public class SimbaCollisionMapDumper
 							}
 						}
 
-						if (type > 9 && type <= 11)
+
+						if (type == 9)
 						{
-							ObjectDefinition object = findObject(location.getId());
+							int drawX = (drawBaseX + localX) * MAP_SCALE;
+							int drawY = (drawBaseY + (Region.Y - object.getSizeY() - localY)) * MAP_SCALE;
+
+							if (drawX >= 0 && drawY >= 0 && drawX < image.getWidth() && drawY < image.getHeight())
+							{
+								for (int x = 0; x < MAP_SCALE; x++) {
+									for (int y = 0; y < MAP_SCALE; y++) {
+										image.setRGB(drawX + x, drawY + y, collisionColor);
+									}
+								}
+							}
+						}
+
+						if (type==10 || type == 11)
+						{
+							if (object.getInteractType() == 0) continue;
+							if (object.getObjectModels() == null) continue;
 
 							int drawX = (drawBaseX + localX) * MAP_SCALE;
 							int drawY = (drawBaseY + (Region.Y - object.getSizeY() - localY)) * MAP_SCALE;
 
-							if (object.getInteractType() == 0) continue;
+							int rotation = location.getOrientation();
 
-							if ((type == 10) || (type == 11)) {
-								int rotation = location.getOrientation();
-
-								if (object.getSizeX() == object.getSizeY()) {
-									for (int sX = 0; sX < object.getSizeX(); sX++) {
-										for (int sY = 0; sY < object.getSizeY(); sY++) {
-											for (int n = 0; n < MAP_SCALE; n++) {
-												for (int l = 0; l < MAP_SCALE; l++) {
-													image.setRGB(drawX + n + sX * MAP_SCALE, drawY + l + sY * MAP_SCALE, collisionColor);
-												}
+							if (object.getSizeX() == object.getSizeY()) {
+								for (int sX = 0; sX < object.getSizeX(); sX++) {
+									for (int sY = 0; sY < object.getSizeY(); sY++) {
+										for (int n = 0; n < MAP_SCALE; n++) {
+											for (int l = 0; l < MAP_SCALE; l++) {
+												image.setRGB(drawX + n + sX * MAP_SCALE, drawY + l + sY * MAP_SCALE, collisionColor);
 											}
 										}
 									}
-									continue;
 								}
+								continue;
+							}
 
-								if (rotation == 0 || rotation == 2) {
+							if (rotation == 0 || rotation == 2) {
+								for (int sX = 0; sX < object.getSizeX(); sX++) {
+									for (int sY = 0; sY < object.getSizeY(); sY++) {
+										paintTile(image, drawX + sX * MAP_SCALE, drawY + sY * MAP_SCALE, collisionColor);
+									}
+								}
+							}
+
+							else {
+								//Don't ask questions about this, just accept it as a fact.
+								if (object.getSizeX() < object.getSizeY()) {
 									for (int sX = 0; sX < object.getSizeX(); sX++) {
 										for (int sY = 0; sY < object.getSizeY(); sY++) {
-											paintTile(image, drawX + sX * MAP_SCALE, drawY + sY * MAP_SCALE, collisionColor);
+											paintTile(image, drawX + sX * MAP_SCALE, drawY + sY * MAP_SCALE + MAP_SCALE, collisionColor);
 										}
 									}
 								}
-
 								else {
-									//Don't ask questions about this, just accept it as a fact.
-									if (object.getSizeX() < object.getSizeY()) {
-										for (int sX = 0; sX < object.getSizeX(); sX++) {
-											for (int sY = 0; sY < object.getSizeY(); sY++) {
-												paintTile(image, drawX + sX * MAP_SCALE, drawY + sY * MAP_SCALE + MAP_SCALE, collisionColor);
-											}
+									int centerY;
+
+									if (object.getSizeY() > 2) centerY = drawY - MAP_SCALE;
+									else centerY = drawY;
+
+									for (int sX = 0; sX < object.getSizeY(); sX++) {
+										for (int sY = 0; sY < object.getSizeX() / 2; sY++) {
+											paintTile(image, drawX + sX * MAP_SCALE, centerY + sY * MAP_SCALE, collisionColor);
+											paintTile(image, drawX + sX * MAP_SCALE, centerY - sY * MAP_SCALE - MAP_SCALE, collisionColor);
 										}
 									}
-									else {
-										int centerY;
-
-										if (object.getSizeY() > 2) centerY = drawY - MAP_SCALE;
-										else centerY = drawY;
-
-										for (int sX = 0; sX < object.getSizeY(); sX++) {
-											for (int sY = 0; sY < object.getSizeX() / 2; sY++) {
-												paintTile(image, drawX + sX * MAP_SCALE, centerY + sY * MAP_SCALE, collisionColor);
-												paintTile(image, drawX + sX * MAP_SCALE, centerY - sY * MAP_SCALE - MAP_SCALE, collisionColor);
-											}
-										}
-										//image.setRGB(drawX + object.getSizeY() * MAP_SCALE/2, drawY - MAP_SCALE, 0xFFFFFF);
-									}
+									//image.setRGB(drawX + object.getSizeY() * MAP_SCALE/2, drawY - MAP_SCALE, 0xFFFFFF);
 								}
 							}
 						}
@@ -848,6 +871,5 @@ public class SimbaCollisionMapDumper
 		byte[] contents = a.decompress(storage.loadArchive(a));
 
 		SpriteLoader loader = new SpriteLoader();
-		SpriteDefinition[] mapDecorations = loader.load(a.getArchiveId(), contents);
 	}
 }
