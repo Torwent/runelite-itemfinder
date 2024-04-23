@@ -45,8 +45,8 @@ public class ItemDefinition
 	public int zan2d = 0;
 
 	public int cost = 1;
-	public boolean isTradeable;
-	public int stackable = 0;
+	public boolean tradeable;
+	public boolean stackable = false;
 	public int inventoryModel;
 
 	public int wearPos1;
@@ -122,7 +122,7 @@ public class ItemDefinition
 		this.name = unnotedItem.name;
 		this.members = unnotedItem.members;
 		this.cost = unnotedItem.cost;
-		this.stackable = 1;
+		this.stackable = true;
 	}
 
 	public void linkBought(ItemDefinition var1, ItemDefinition var2)
@@ -183,6 +183,6 @@ public class ItemDefinition
 		this.name = var2.name;
 		this.cost = 0;
 		this.members = false;
-		this.isTradeable = false;
+		this.tradeable = false;
 	}
 }
