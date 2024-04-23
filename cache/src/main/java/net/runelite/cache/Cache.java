@@ -24,14 +24,29 @@
  */
 package net.runelite.cache;
 
-import java.io.File;
-import java.io.IOException;
+import java.awt.image.BufferedImage;
+import java.io.*;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+
+import net.runelite.cache.definitions.ItemDefinition;
+import net.runelite.cache.definitions.ModelDefinition;
+import net.runelite.cache.definitions.loaders.ModelLoader;
+import net.runelite.cache.definitions.providers.ModelProvider;
+import net.runelite.cache.fs.Archive;
+import net.runelite.cache.fs.Index;
 import net.runelite.cache.fs.Store;
+import net.runelite.cache.item.ItemSpriteFactory;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+
+import javax.imageio.ImageIO;
 
 public class Cache
 {
@@ -157,5 +172,122 @@ public class Cache
 		SpriteManager dumper = new SpriteManager(store);
 		dumper.load();
 		dumper.export(spritedir);
+	}
+
+	private static MessageDigest md5;
+
+	private static byte[] hashImage(BufferedImage img) throws IOException {
+		ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+		ImageIO.write(img, "png", outputStream);
+		md5.update(outputStream.toByteArray());
+
+		return md5.digest();
+	}
+
+	private static void dumpItemImage(ItemManager itemManager, ModelProvider modelProvider, SpriteManager spriteManager, TextureManager textureManager, Integer id, String name, ZipOutputStream zipper, FileWriter itemFile, ArrayList<byte[]> hashes, ArrayList<String> names) throws IOException, NoSuchAlgorithmException {
+
+		BufferedImage img = ItemSpriteFactory.createSprite(itemManager, modelProvider, spriteManager, textureManager, id, 1, 1, 3153952, false);
+		byte[] hash = hashImage(img);
+
+		for (int i = 0; i < hashes.size(); i++) {
+			if (names.get(i).equals(name) && md5.isEqual(hashes.get(i), hash)) {
+				System.out.println("Duplicate: " + name + " :: " + id);
+				return;
+			}
+		}
+		hashes.add(hash);
+		names.add(name);
+
+		try {
+			zipper.putNextEntry(new ZipEntry(id + ".png"));
+		} catch (Exception ex) {
+			return;
+		}
+
+		ImageIO.write(img, "png", zipper);
+		itemFile.write(name + "=" + id + System.lineSeparator());
+	}
+
+	private static void dumpItemFinder(Store store, File outDir) throws IOException {
+		try {
+			md5 = MessageDigest.getInstance("MD5");
+		} catch (Exception ex) {
+			return;
+		}
+
+		ArrayList<String> names = new ArrayList<String>();
+		ArrayList<byte[]> hashes = new ArrayList<byte[]>();
+
+		ZipOutputStream zipper = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(new File(outDir, "item-images.zip"))));
+		FileWriter itemFile = new FileWriter(new File(outDir, "item-names"));
+
+		ItemManager itemManager = new ItemManager(store);
+		itemManager.load();
+		itemManager.link();
+
+		ModelProvider modelProvider = new ModelProvider()
+		{
+			@Override
+			public ModelDefinition provide(int modelId) throws IOException
+			{
+				Index models = store.getIndex(IndexType.MODELS);
+				Archive archive = models.getArchive(modelId);
+
+				byte[] data = archive.decompress(store.getStorage().loadArchive(archive));
+				ModelDefinition inventoryModel = new ModelLoader().load(modelId, data);
+				return inventoryModel;
+			}
+		};
+
+		SpriteManager spriteManager = new SpriteManager(store);
+		spriteManager.load();
+
+		TextureManager textureManager = new TextureManager(store);
+		textureManager.load();
+
+		for (ItemDefinition itemDef : itemManager.getItems())
+		{
+			if ((itemDef.name == null) || (itemDef.name.isEmpty())) {
+				continue;
+			}
+			if (itemDef.name.equalsIgnoreCase("null") && (itemDef.getNotedID() == -1))  {
+				continue;
+			}
+
+			String name = "";
+			if ((itemDef.getNotedTemplate() == -1) && (!itemDef.getName().equalsIgnoreCase("null"))) {
+				name = itemDef.getName().toLowerCase();
+			}
+			else if (itemDef.getNotedID() != -1) {
+				name = "noted " + itemManager.getItem(itemDef.getNotedID()).getName().toLowerCase();
+			}
+
+			// stacked items
+			if (itemDef.getCountObj() != null) {
+				for (int i = 0; i < 10; ++i) {
+					int id = itemDef.getCountObj()[i];
+
+					if (id > 0) {
+						try {
+							dumpItemImage(itemManager, modelProvider, spriteManager, textureManager, id, name, zipper, itemFile, hashes, names);
+						}
+						catch (Exception ex) {
+							System.out.println("Error dumping noted item " + id);
+							System.out.println(ex);
+						}
+					}
+				}
+			}
+
+			try {
+				dumpItemImage(itemManager, modelProvider, spriteManager, textureManager, itemDef.id, name, zipper, itemFile, hashes, names);
+			} catch (Exception ex) {
+				System.out.println("Error dumping item " + itemDef.id);
+				System.out.println(ex);
+			}
+		}
+
+		zipper.close();
+		itemFile.close();
 	}
 }
