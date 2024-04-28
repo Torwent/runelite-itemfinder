@@ -25,13 +25,16 @@
 package net.runelite.cache.models;
 
 import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.List;
+
 import net.runelite.cache.TextureManager;
 import net.runelite.cache.definitions.ModelDefinition;
 import net.runelite.cache.definitions.TextureDefinition;
 
 public class ObjExporter
 {
-	private static final double BRIGHTNESS = JagexColor.BRIGHTNESS_MIN;
+	private static final double BRIGHTNESS = JagexColor.BRIGHTNESS_MAX;
 
 	private final TextureManager textureManager;
 	private final ModelDefinition model;
@@ -54,8 +57,8 @@ public class ObjExporter
 		for (int i = 0; i < model.vertexCount; ++i)
 		{
 			objWriter.println("v " + model.vertexX[i] + " "
-				+ model.vertexY[i] * -1 + " "
-				+ model.vertexZ[i] * -1);
+					+ model.vertexY[i] * -1 + " "
+					+ model.vertexZ[i] * -1);
 		}
 
 		if (model.faceTextures != null)
@@ -86,9 +89,9 @@ public class ObjExporter
 			if (model.faceTextures != null)
 			{
 				objWriter.println("f "
-					+ x + "/" + (i * 3 + 1) + " "
-					+ y + "/" + (i * 3 + 2) + " "
-					+ z + "/" + (i * 3 + 3));
+						+ x + "/" + (i * 3 + 1) + " "
+						+ y + "/" + (i * 3 + 2) + " "
+						+ z + "/" + (i * 3 + 3));
 
 			}
 			else
@@ -139,5 +142,31 @@ public class ObjExporter
 				mtlWriter.println("d " + (alpha / 255.0));
 			}
 		}
+	}
+
+	public int getSimbaHeight()
+	{
+		int height = 0;
+		for (int i = 0; i < model.getVertexY().length; i++) {
+			int current = model.getVertexY()[i] * -1;
+			if (current > height) height = current;
+		}
+		return height;
+	}
+
+	public List<Integer> getSimbaColors()
+	{
+		List<Integer> colors = new ArrayList<>();
+		// Write material
+		for (int i = 0; i < model.faceCount; ++i)
+		{
+			if (model.faceTextures != null)
+			{
+				int rgb = JagexColor.HSLtoRGB(model.faceColors[i], BRIGHTNESS);
+				colors.add(rgb);
+			}
+
+		}
+		return colors;
 	}
 }
