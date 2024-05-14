@@ -24,9 +24,11 @@
  */
 package net.runelite.cache.models;
 
+import java.awt.Color;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import net.runelite.cache.TextureManager;
 import net.runelite.cache.definitions.ModelDefinition;
@@ -115,7 +117,7 @@ public class ObjExporter
 
 			if (textureId == -1)
 			{
-				int rgb = JagexColor.HSLtoRGB( model.faceColors[i], BRIGHTNESS);
+				int rgb = JagexColor.HSLtoRGB(model.faceColors[i], BRIGHTNESS);
 				double r = ((rgb >> 16) & 0xff) / 255.0;
 				double g = ((rgb >> 8) & 0xff) / 255.0;
 				double b = (rgb & 0xff) / 255.0;
@@ -157,15 +159,59 @@ public class ObjExporter
 	public List<Integer> getSimbaColors()
 	{
 		List<Integer> colors = new ArrayList<>();
-		// Write material
 		for (int i = 0; i < model.faceCount; ++i)
 		{
-			if (model.faceTextures != null)
+			//if (model.faceTextures != null)
+			int rgb = JagexColor.HSLtoRGB(model.faceColors[i], JagexColor.BRIGHTNESS_MAX);
+
+			int r = (rgb >> 16) & 0xFF;
+			int g = (rgb >> 8) & 0xFF;
+			int b = rgb & 0xFF;
+
+			int bgr = b;
+			bgr = (bgr << 8) + g;
+			bgr = (bgr << 8) + r;
+
+			int alpha = 0;
+
+			if (model.faceTransparencies != null)
 			{
-				int rgb = JagexColor.HSLtoRGB(model.faceColors[i], BRIGHTNESS);
-				colors.add(rgb);
+				alpha = model.faceTransparencies[i] & 0xFF;
 			}
 
+			if (alpha == 0) colors.add(bgr);
+		}
+
+		return colors.stream().distinct().collect(Collectors.toList());
+	}
+
+	public List<Integer> getSimbaColors2(){
+		List<Integer> colors = new ArrayList<>();
+		List<Integer> knownTextures = new ArrayList<>();
+		List<Short> knownHSL = new ArrayList<>();
+		for (int i = 0; i < model.getFaceCount(); ++i)
+		{
+			// determine face color (textured or colored?)
+			int textureId = -1;
+			if (model.getFaceTextures() != null) textureId = model.getFaceTextures()[i];
+
+			int rgbColor;
+			if (textureId != -1)
+			{
+				if (knownTextures.contains(textureId)) continue;
+				TextureDefinition texture = textureManager.findTexture((textureId));
+				rgbColor = JagexColor.adjustForBrightness(texture.field1777, JagexColor.BRIGHTNESS_MAX);
+				knownTextures.add(textureId);
+			}
+			else
+			{
+				if (knownHSL.contains(model.faceColors[i])) continue;
+				rgbColor = JagexColor.HSLtoRGB(model.faceColors[i], JagexColor.BRIGHTNESS_MAX);
+				knownHSL.add(model.faceColors[i]);
+			}
+
+			int bgr = JagexColor.RGBtoBGR(rgbColor);
+			if (!colors.contains(bgr)) colors.add(bgr);
 		}
 		return colors;
 	}
