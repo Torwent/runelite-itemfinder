@@ -62,9 +62,9 @@ public class SimbaObjectInfoDumper
 	private final ModelLoader modelLoader;
 	private static TextureManager textureManager;
 
-	private final boolean exportChunks = true;
+	private static final boolean exportChunks = true;
 
-	private static boolean exportEmptyJSONs = true;
+	private static final boolean exportEmptyJSONs = true;
 
 
 	public SimbaObjectInfoDumper(Store store, KeyProvider keyProvider)
@@ -128,24 +128,23 @@ public class SimbaObjectInfoDumper
 			SimbaObjectInfoDumper dumper = new SimbaObjectInfoDumper(store, xteaKeyManager);
 			dumper.load();
 
-			ZipOutputStream zip = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(new File(outputDirectory, "objects.zip"))));
+			ZipOutputStream zip;
+
+			if (exportChunks) {
+				zip = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(new File(outputDirectory, "objects.zip"))));
+			}
 
 			for (int i = 0; i < Region.Z; ++i)
 			{
-				File mapDir = new File(outputDirectory + File.separator + i);
-				if (dumper.exportChunks) mapDir.mkdirs();
-				JsonArray objects = dumper.mapRegions(i, mapDir, zip);
-
+				JsonArray objects = dumper.mapRegions(i, zip);
 				File jsonFile = new File(outDir, "objects-" + i + ".json");
-				jsonFile.createNewFile();
-
-				FileWriter fileWriter = new FileWriter(jsonFile);
-				fileWriter.write(objects.toString());
-
-				fileWriter.flush();
-				fileWriter.close();
-
-				log.info("Wrote json {}", jsonFile);
+				if (jsonFile.createNewFile()) {
+					FileWriter fileWriter = new FileWriter(jsonFile);
+					fileWriter.write(objects.toString());
+					fileWriter.flush();
+					fileWriter.close();
+					log.info("Wrote json {}", jsonFile);
+				}
 			}
 
 			zip.close();
@@ -160,7 +159,7 @@ public class SimbaObjectInfoDumper
 		return this;
 	}
 
-	public JsonArray mapRegions(int z, File outDir, ZipOutputStream zip)
+	public JsonArray mapRegions(int z, ZipOutputStream zip)
 	{
 		int minX = regionLoader.getLowestX().getBaseX();
 		int minY = regionLoader.getLowestY().getBaseY();
@@ -180,8 +179,7 @@ public class SimbaObjectInfoDumper
 
 		JsonArray json = new JsonArray();
 
-		mapRegions(json, z, outDir, zip);
-
+		mapRegions(json, z, zip);
 		return cleanJSON(json);
 	}
 
@@ -214,8 +212,7 @@ public class SimbaObjectInfoDumper
 		return result;
 	}
 
-	private void mapObjects(JsonArray json, int drawBaseX, int drawBaseY, Region region, int z)
-	{
+	private void mapObjects(JsonArray json, int drawBaseX, int drawBaseY, Region region, int z) throws IOException {
 		List<Location> planeLocs = new ArrayList<>();
 		List<Location> pushDownLocs = new ArrayList<>();
 		List<List<Location>> layers = Arrays.asList(planeLocs, pushDownLocs);
@@ -243,6 +240,9 @@ public class SimbaObjectInfoDumper
 						pushDownLocs.add(loc);
 				}
 
+				TextureManager tm = new TextureManager(store);
+				tm.load();
+
 				for (List<Location> locs : layers)
 				{
 					for (Location location : locs)
@@ -260,22 +260,15 @@ public class SimbaObjectInfoDumper
 						int height = 0;
 						List<Integer> colors = new ArrayList<>();
 
-						Archive archive = index.getArchive(object.getObjectModels()[0]);
-						try {
+						for (int i = 0; i < object.getObjectModels().length; i++) {
+							Archive archive = index.getArchive(object.getObjectModels()[i]);
 							byte[] contents = archive.decompress(store.getStorage().loadArchive(archive));
 							ModelDefinition model = modelLoader.load(archive.getArchiveId(), contents);
-							TextureManager tm = new TextureManager(store);
-							tm.load();
 
 							ObjExporter exporter = new ObjExporter(tm, model);
-							height = exporter.getSimbaHeight();
-							colors = exporter.getSimbaColors();
-						} catch (IOException e) {
-							throw new RuntimeException(e);
+							if (height == 0) height = exporter.getSimbaHeight();
+							colors.addAll(exporter.getSimbaColors2());
 						}
-
-						System.out.println(height);
-						System.out.println(colors);
 
 						int x = (drawBaseX + localX) * MAP_SCALE;
 						int y = (drawBaseY + (Region.Y - object.getSizeY() - localY)) * MAP_SCALE;
@@ -316,6 +309,11 @@ public class SimbaObjectInfoDumper
 						else rotations.add(location.getOrientation());
 						obj.add("rotations", rotations);
 
+						JsonArray jsonColors = new JsonArray();
+						for (int i = 0; i < colors.size(); i++) {
+							jsonColors.add(colors.get(i));
+						}
+						obj.add("colors", jsonColors);
 						json.add(obj);
 					}
 				}
@@ -323,7 +321,7 @@ public class SimbaObjectInfoDumper
 		}
 	}
 
-	private void mapRegions(JsonArray json, int z, File outDir, ZipOutputStream zip)
+	private void mapRegions(JsonArray json, int z, ZipOutputStream zip)
 	{
 		for (Region region : regionLoader.getRegions())
 		{
@@ -338,20 +336,18 @@ public class SimbaObjectInfoDumper
 			int drawBaseY = regionLoader.getHighestY().getBaseY() - baseY;
 
 			JsonArray regionJSON = new JsonArray();
-			mapObjects(regionJSON, drawBaseX, drawBaseY, region, z);
+			try {
+				mapObjects(regionJSON, drawBaseX, drawBaseY, region, z);
+			} catch (IOException e) {
+				throw new RuntimeException(e);
+			}
 			regionJSON = cleanJSON(regionJSON);
 
 			if (regionJSON.size() > 0) json.addAll(regionJSON);
-
-			if (exportChunks && (regionJSON.size() > 0 || exportEmptyJSONs)) {
+			if (exportChunks && (exportEmptyJSONs || regionJSON.size() > 0)) {
 				try {
 					zip.putNextEntry(new ZipEntry(z + File.separator + region.getRegionX() + "-" + region.getRegionY() + ".json"));
-					File jsonFile = new File(outDir, region.getRegionX() + "-" + region.getRegionY() + ".json");
-					jsonFile.createNewFile();
-					FileWriter fileWriter = new FileWriter(jsonFile);
-					fileWriter.write(regionJSON.toString());
-					fileWriter.flush();
-					fileWriter.close();
+					zip.write(regionJSON.toString().getBytes());
 				} catch (IOException e) {
 					throw new RuntimeException(e);
 				}

@@ -31,7 +31,7 @@ import net.runelite.cache.definitions.providers.SpriteProvider;
 @Data
 public class TextureDefinition
 {
-	public int field1777;
+	public int field1777; //average rgb color
 	public boolean field1778;
 	private int id;
 	private int[] fileIds;

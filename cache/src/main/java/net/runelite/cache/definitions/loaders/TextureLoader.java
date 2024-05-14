@@ -34,7 +34,7 @@ public class TextureLoader
 		TextureDefinition def = new TextureDefinition();
 		InputStream is = new InputStream(b);
 
-		def.field1777 = is.readUnsignedShort();
+		def.field1777 = is.readUnsignedShort(); //average RGB
 		def.field1778 = is.readByte() != 0;
 		def.setId(id);
 

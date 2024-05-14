@@ -37,9 +37,9 @@ import org.slf4j.LoggerFactory;
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
+import java.io.*;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Slf4j
 public class SimbaHeightMapDumper
@@ -47,8 +47,8 @@ public class SimbaHeightMapDumper
 	private static final Logger logger = LoggerFactory.getLogger(SimbaHeightMapDumper.class);
 	private static final int MAP_SCALE = 1;
 	private static final float MAX_HEIGHT = 2048f;
-	private boolean exportChunks = true;
-	private static boolean exportEmptyImages = true;
+	private static final boolean exportChunks = true;
+	private static final boolean exportEmptyImages = true;
 	private final Store store;
 	private RegionLoader regionLoader;
 
@@ -64,24 +64,20 @@ public class SimbaHeightMapDumper
 		regionLoader.calculateBounds();
 	}
 
-	public BufferedImage drawRegions(int z, File outDir)
-	{
+	public BufferedImage drawRegions(int z, ZipOutputStream zip) throws IOException {
 		int minX = regionLoader.getLowestX().getBaseX();
 		int minY = regionLoader.getLowestY().getBaseY();
 
 		int maxX = regionLoader.getHighestX().getBaseX() + Region.X;
 		int maxY = regionLoader.getHighestY().getBaseY() + Region.Y;
 
-		int dimX = maxX - minX;
-		int dimY = maxY - minY;
-
-		dimX *= MAP_SCALE;
-		dimY *= MAP_SCALE;
+		int dimX = (maxX - minX) * MAP_SCALE;
+		int dimY = (maxY - minY) * MAP_SCALE;
 
 		logger.info("Map image dimensions: {}px x {}px, {}px per map square ({} MB)", dimX, dimY, MAP_SCALE, (dimX * dimY / 1024 / 1024));
 
 		BufferedImage image = new BufferedImage(dimX, dimY, BufferedImage.TYPE_INT_RGB);
-		drawRegions(image, z, outDir);
+		drawRegions(image, z, zip);
 		return image;
 	}
 
@@ -94,8 +90,7 @@ public class SimbaHeightMapDumper
 		return true;
 	}
 
-	private void drawRegions(BufferedImage image, int z, File outDir)
-	{
+	private void drawRegions(BufferedImage image, int z, ZipOutputStream zip) throws IOException {
 		int max = Integer.MIN_VALUE;
 		int min = Integer.MAX_VALUE;
 
@@ -135,18 +130,14 @@ public class SimbaHeightMapDumper
 			}
 
 			if (exportChunks) {
-				try {
-					BufferedImage chunk = image.getSubimage(drawBaseX * MAP_SCALE, drawBaseY * MAP_SCALE, Region.X * MAP_SCALE, Region.Y * MAP_SCALE);
-
-					if (!isImageEmpty(chunk)) {
-						File imageFile = new File(outDir, region.getRegionX() + "-" + region.getRegionY() + ".png");
-						ImageIO.write(chunk, "png", imageFile);
-					}
-				} catch (IOException e) {
-					throw new RuntimeException(e);
+				BufferedImage chunk = image.getSubimage(drawBaseX * MAP_SCALE, drawBaseY * MAP_SCALE, Region.X * MAP_SCALE, Region.Y * MAP_SCALE);
+				if (!isImageEmpty(chunk)) {
+					zip.putNextEntry(new ZipEntry(region.getRegionX() + "-" + region.getRegionY() + ".png"));
+					ImageIO.write(chunk, "png", zip);
 				}
 			}
 		}
+
 		System.out.println("max " + max);
 		System.out.println("min " + min);
 	}
@@ -173,13 +164,6 @@ public class SimbaHeightMapDumper
 				image.setRGB(x + i, y + j, rgb);
 	}
 
-	private static void dumpItems(Store store, File itemdir) throws IOException
-	{
-		ItemManager dumper = new ItemManager(store);
-		dumper.load();
-		dumper.export(itemdir);
-		dumper.java(itemdir);
-	}
 	public static void main(String[] args) throws IOException
 	{
 		Options options = new Options();
@@ -226,13 +210,15 @@ public class SimbaHeightMapDumper
 			SimbaHeightMapDumper dumper = new SimbaHeightMapDumper(store);
 			dumper.load(xteaKeyManager);
 
+			ZipOutputStream zip;
+			if (exportChunks) {
+				zip = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(new File(outputDirectory, "heightmap.zip"))));
+			}
 
-			File mapDir = new File(outputDirectory + File.separator + "chunks");
-			if (dumper.exportChunks) mapDir.mkdirs();
-			BufferedImage image = dumper.drawRegions(0, mapDir);
+			BufferedImage image = dumper.drawRegions(0, zip);
+			zip.close();
 
 			File imageFile = new File(outDir, "img.png");
-
 			ImageIO.write(image, "png", imageFile);
 			log.info("Wrote image {}", imageFile);
 		}

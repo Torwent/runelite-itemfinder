@@ -47,11 +47,11 @@ import org.apache.commons.cli.*;
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
+import java.io.*;
 import java.util.List;
 import java.util.*;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Slf4j
 @Accessors(chain = true)
@@ -61,8 +61,8 @@ public class SimbaMapImageDumper
 	private static final int BLEND = 5; // number of surrounding tiles for ground blending
 	private static int[] colorPalette = JagexColor.createPalette(JagexColor.BRIGHTNESS_MAX);
 
-	private static int[][] TILE_SHAPE_2D = new int[][]{{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, {1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1}, {1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0}, {0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1}, {0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, {1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1}, {1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0}, {1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1}, {1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1}, {0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1}};
-	private static int[][] TILE_ROTATION_2D = new int[][]{{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, {12, 8, 4, 0, 13, 9, 5, 1, 14, 10, 6, 2, 15, 11, 7, 3}, {15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}, {3, 7, 11, 15, 2, 6, 10, 14, 1, 5, 9, 13, 0, 4, 8, 12}};
+	private static final int[][] TILE_SHAPE_2D = new int[][]{{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, {1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1}, {1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0}, {0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1}, {0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, {1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1}, {1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0}, {1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1}, {1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1}, {0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1}};
+	private static final int[][] TILE_ROTATION_2D = new int[][]{{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, {12, 8, 4, 0, 13, 9, 5, 1, 14, 10, 6, 2, 15, 11, 7, 3}, {15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}, {3, 7, 11, 15, 2, 6, 10, 14, 1, 5, 9, 13, 0, 4, 8, 12}};
 
 	private final int wallColor = (238 + (int) (random() * 20.0D) - 10 << 16) + (238 + (int) (random() * 20.0D) - 10 << 8) + (238 + (int) (random() * 20.0D) - 10);
 	private final int doorColor = 238 + (int) (random() * 20.0D) - 10 << 16;
@@ -86,9 +86,9 @@ public class SimbaMapImageDumper
 	@Getter
 	@Setter
 	private boolean outlineRegions = false;
-	private boolean exportChunks = true;
+	private static final boolean exportChunks = true;
 
-	private static boolean exportEmptyImages = true;
+	private static final boolean exportEmptyImages = true;
 
 	@Getter
 	@Setter
@@ -165,27 +165,29 @@ public class SimbaMapImageDumper
 		try (Store store = new Store(base))
 		{
 			store.load();
-
 			SimbaMapImageDumper dumper = new SimbaMapImageDumper(store, xteaKeyManager);
 			dumper.load();
 
+			ZipOutputStream zip;
+			if (exportChunks) {
+				zip = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(new File(outputDirectory, "map.zip"))));
+			}
+
 			for (int i = 0; i < Region.Z; ++i)
 			{
-				File mapDir = new File(outputDirectory + File.separator + i);
-				if (dumper.exportChunks) mapDir.mkdirs();
-				BufferedImage image = dumper.drawRegions(i, mapDir);
-
+				BufferedImage image = dumper.drawRegions(i, zip);
 				File imageFile = new File(outDir, "img-" + i + ".png");
-
 				ImageIO.write(image, "png", imageFile);
 				log.info("Wrote image {}", imageFile);
 			}
+
+			zip.close();
 		}
 	}
 
 	protected double random()
 	{
-		return 0.5; // the client would use a random value here, but we prefer determinism
+		return 0.5; //the client would use a random value here, but we prefer determinism
 	}
 
 	public SimbaMapImageDumper setBrightness(double brightness)
@@ -212,8 +214,7 @@ public class SimbaMapImageDumper
 		return this;
 	}
 
-	public BufferedImage drawRegions(int z, File outDir)
-	{
+	public BufferedImage drawRegions(int z, ZipOutputStream zip) throws IOException {
 		int minX = regionLoader.getLowestX().getBaseX();
 		int minY = regionLoader.getLowestY().getBaseY();
 
@@ -232,16 +233,11 @@ public class SimbaMapImageDumper
 
 		BufferedImage image;
 		if (lowMemory)
-		{
 			image = BigBufferedImage.create(pixelsX, pixelsY, transparency ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
-		}
 		else
-		{
 			image = new BufferedImage(pixelsX, pixelsY, transparency ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
-		}
 
-		drawRegions(image, z, outDir);
-
+		drawRegions(image, z, zip);
 		return image;
 	}
 
@@ -253,8 +249,7 @@ public class SimbaMapImageDumper
 					return false;
 		return true;
 	}
-	private void drawRegions(BufferedImage image, int z, File outDir)
-	{
+	private void drawRegions(BufferedImage image, int z, ZipOutputStream zip) throws IOException {
 		for (Region region : regionLoader.getRegions())
 		{
 			int baseX = region.getBaseX();
@@ -276,18 +271,13 @@ public class SimbaMapImageDumper
 			for (Region region : regionLoader.getRegions()) {
 				int baseX = region.getBaseX();
 				int baseY = region.getBaseY();
-
 				int drawBaseX = baseX - regionLoader.getLowestX().getBaseX();
 				int drawBaseY = regionLoader.getHighestY().getBaseY() - baseY;
 
-				try {
-					BufferedImage chunk = image.getSubimage(drawBaseX * MAP_SCALE, drawBaseY * MAP_SCALE, Region.X * MAP_SCALE, Region.Y * MAP_SCALE);
-					if (exportEmptyImages || !isImageEmpty(chunk)) {
-						File imageFile = new File(outDir, region.getRegionX() + "-" + region.getRegionY() + ".png");
-						ImageIO.write(chunk, "png", imageFile);
-					}
-				} catch (IOException e) {
-					throw new RuntimeException(e);
+				BufferedImage chunk = image.getSubimage(drawBaseX * MAP_SCALE, drawBaseY * MAP_SCALE, Region.X * MAP_SCALE, Region.Y * MAP_SCALE);
+				if (exportEmptyImages || !isImageEmpty(chunk)) {
+					zip.putNextEntry(new ZipEntry(z + "/" + region.getRegionX() + "-" + region.getRegionY() + ".png"));
+					ImageIO.write(chunk, "png", zip);
 				}
 			}
 		}
