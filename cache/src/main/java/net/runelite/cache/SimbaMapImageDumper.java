@@ -86,8 +86,9 @@ public class SimbaMapImageDumper
 	@Getter
 	@Setter
 	private boolean outlineRegions = false;
-	private static final boolean exportChunks = true;
 
+	public static boolean exportFullMap = false;
+	private static boolean exportChunks = true;
 	private static final boolean exportEmptyImages = true;
 
 	@Getter
@@ -148,9 +149,10 @@ public class SimbaMapImageDumper
 		final String cacheName = cmd.getOptionValue("cachename");
 
 		final String cacheDirectory = mainDir + File.separator + cacheName + File.separator + "cache";
-
 		final String xteaJSONPath = mainDir + File.separator + cacheName + File.separator + cacheName.replace("cache-", "keys-") + ".json";
-		final String outputDirectory = cmd.getOptionValue("outputdir") + File.separator + cacheName + File.separator + "map";
+
+		final String outputDirectory = cmd.getOptionValue("outputdir") + File.separator + cacheName;
+		final String outputDirectoryEx = outputDirectory + File.separator + "map";
 
 		XteaKeyManager xteaKeyManager = new XteaKeyManager();
 		try (FileInputStream fin = new FileInputStream(xteaJSONPath))
@@ -159,8 +161,13 @@ public class SimbaMapImageDumper
 		}
 
 		File base = new File(cacheDirectory);
-		File outDir = new File(outputDirectory);
-		outDir.mkdirs();
+		File outDir;
+
+		if (exportFullMap) outDir = new File(outputDirectoryEx);
+		else outDir = new File(outputDirectory);
+
+		if (outDir.mkdirs()) throw new RuntimeException("Failed to create output path: " + outDir.getPath());
+		if (!exportFullMap) exportChunks = true;
 
 		try (Store store = new Store(base))
 		{
@@ -168,7 +175,7 @@ public class SimbaMapImageDumper
 			SimbaMapImageDumper dumper = new SimbaMapImageDumper(store, xteaKeyManager);
 			dumper.load();
 
-			ZipOutputStream zip;
+			ZipOutputStream zip = null;
 			if (exportChunks) {
 				zip = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(new File(outputDirectory, "map.zip"))));
 			}
@@ -176,12 +183,14 @@ public class SimbaMapImageDumper
 			for (int i = 0; i < Region.Z; ++i)
 			{
 				BufferedImage image = dumper.drawRegions(i, zip);
-				File imageFile = new File(outDir, "img-" + i + ".png");
-				ImageIO.write(image, "png", imageFile);
-				log.info("Wrote image {}", imageFile);
+				if (exportFullMap) {
+					File imageFile = new File(outDir, "img-" + i + ".png");
+					ImageIO.write(image, "png", imageFile);
+					log.info("Wrote image {}", imageFile);
+				}
 			}
 
-			zip.close();
+			if (zip != null) zip.close();
 		}
 	}
 

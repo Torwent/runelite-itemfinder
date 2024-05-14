@@ -156,36 +156,7 @@ public class ObjExporter
 		return height;
 	}
 
-	public List<Integer> getSimbaColors()
-	{
-		List<Integer> colors = new ArrayList<>();
-		for (int i = 0; i < model.faceCount; ++i)
-		{
-			//if (model.faceTextures != null)
-			int rgb = JagexColor.HSLtoRGB(model.faceColors[i], JagexColor.BRIGHTNESS_MAX);
-
-			int r = (rgb >> 16) & 0xFF;
-			int g = (rgb >> 8) & 0xFF;
-			int b = rgb & 0xFF;
-
-			int bgr = b;
-			bgr = (bgr << 8) + g;
-			bgr = (bgr << 8) + r;
-
-			int alpha = 0;
-
-			if (model.faceTransparencies != null)
-			{
-				alpha = model.faceTransparencies[i] & 0xFF;
-			}
-
-			if (alpha == 0) colors.add(bgr);
-		}
-
-		return colors.stream().distinct().collect(Collectors.toList());
-	}
-
-	public List<Integer> getSimbaColors2(){
+	public List<Integer> getSimbaColors(){
 		List<Integer> colors = new ArrayList<>();
 		List<Integer> knownTextures = new ArrayList<>();
 		List<Short> knownHSL = new ArrayList<>();

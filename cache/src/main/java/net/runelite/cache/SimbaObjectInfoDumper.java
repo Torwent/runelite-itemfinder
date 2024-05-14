@@ -55,14 +55,15 @@ public class SimbaObjectInfoDumper
 	private static final int MAP_SCALE = 4; // this squared is the number of pixels per map square
 	private final Store store;
 	private static Index index;
+	private static TextureManager textureManager;
 
 	private final RegionLoader regionLoader;
 	private final ObjectManager objectManager;
 
 	private final ModelLoader modelLoader;
-	private static TextureManager textureManager;
+	public static boolean exportFullMap = false;
 
-	private static final boolean exportChunks = true;
+	private static boolean exportChunks = true;
 
 	private static final boolean exportEmptyJSONs = true;
 
@@ -106,7 +107,8 @@ public class SimbaObjectInfoDumper
 		final String cacheDirectory = mainDir + File.separator + cacheName + File.separator + "cache";
 
 		final String xteaJSONPath = mainDir + File.separator + cacheName + File.separator + cacheName.replace("cache-", "keys-") + ".json";
-		final String outputDirectory = cmd.getOptionValue("outputdir") + File.separator + cacheName + File.separator + "objects";
+		final String outputDirectory = cmd.getOptionValue("outputdir") + File.separator + cacheName;
+		final String outputDirectoryEx = outputDirectory + File.separator + "objects";
 
 		XteaKeyManager xteaKeyManager = new XteaKeyManager();
 		try (FileInputStream fin = new FileInputStream(xteaJSONPath))
@@ -115,21 +117,22 @@ public class SimbaObjectInfoDumper
 		}
 
 		File base = new File(cacheDirectory);
-		File outDir = new File(outputDirectory);
-		outDir.mkdirs();
+		File outDir;
+
+		if (exportFullMap) outDir = new File(outputDirectoryEx);
+		else outDir = new File(outputDirectory);
+
+		if (outDir.mkdirs()) throw new RuntimeException("Failed to create output path: " + outDir.getPath());
+		if (!exportFullMap) exportChunks = true;
 
 		try (Store store = new Store(base))
 		{
 			store.load();
-			index = store.getIndex(IndexType.MODELS);
-			textureManager = new TextureManager(store);
-			textureManager.load();
 
 			SimbaObjectInfoDumper dumper = new SimbaObjectInfoDumper(store, xteaKeyManager);
 			dumper.load();
 
-			ZipOutputStream zip;
-
+			ZipOutputStream zip = null;
 			if (exportChunks) {
 				zip = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(new File(outputDirectory, "objects.zip"))));
 			}
@@ -137,23 +140,28 @@ public class SimbaObjectInfoDumper
 			for (int i = 0; i < Region.Z; ++i)
 			{
 				JsonArray objects = dumper.mapRegions(i, zip);
-				File jsonFile = new File(outDir, "objects-" + i + ".json");
-				if (jsonFile.createNewFile()) {
-					FileWriter fileWriter = new FileWriter(jsonFile);
-					fileWriter.write(objects.toString());
-					fileWriter.flush();
-					fileWriter.close();
-					log.info("Wrote json {}", jsonFile);
+				if (exportFullMap) {
+					File jsonFile = new File(outDir, "objects-" + i + ".json");
+					if (jsonFile.createNewFile()) {
+						FileWriter fileWriter = new FileWriter(jsonFile);
+						fileWriter.write(objects.toString());
+						fileWriter.flush();
+						fileWriter.close();
+						log.info("Wrote json {}", jsonFile);
+					}
 				}
 			}
 
-			zip.close();
+			if (zip != null) zip.close();
 		}
 	}
 
 	public SimbaObjectInfoDumper load() throws IOException
 	{
 		objectManager.load();
+		index = store.getIndex(IndexType.MODELS);
+		textureManager = new TextureManager(store);
+		textureManager.load();
 
 		loadRegions();
 		return this;
@@ -240,9 +248,6 @@ public class SimbaObjectInfoDumper
 						pushDownLocs.add(loc);
 				}
 
-				TextureManager tm = new TextureManager(store);
-				tm.load();
-
 				for (List<Location> locs : layers)
 				{
 					for (Location location : locs)
@@ -265,9 +270,9 @@ public class SimbaObjectInfoDumper
 							byte[] contents = archive.decompress(store.getStorage().loadArchive(archive));
 							ModelDefinition model = modelLoader.load(archive.getArchiveId(), contents);
 
-							ObjExporter exporter = new ObjExporter(tm, model);
+							ObjExporter exporter = new ObjExporter(textureManager, model);
 							if (height == 0) height = exporter.getSimbaHeight();
-							colors.addAll(exporter.getSimbaColors2());
+							colors.addAll(exporter.getSimbaColors());
 						}
 
 						int x = (drawBaseX + localX) * MAP_SCALE;

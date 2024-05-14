@@ -47,7 +47,6 @@ import org.apache.commons.cli.*;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.*;
-import java.nio.Buffer;
 import java.util.List;
 import java.util.*;
 import java.util.zip.ZipEntry;
@@ -77,8 +76,9 @@ public class SimbaCollisionMapDumper
 	private final SpriteManager sprites;
 	private RSTextureProvider rsTextureProvider;
 	private final ObjectManager objectManager;
+	public static boolean exportFullMap = false;
 
-	private static final boolean exportChunks = true;
+	private static boolean exportChunks = true;
 	private static final boolean exportEmptyImages = true;
 	private static final boolean debugMap = false;
 
@@ -144,7 +144,8 @@ public class SimbaCollisionMapDumper
 		final String cacheDirectory = mainDir + File.separator + cacheName + File.separator + "cache";
 
 		final String xteaJSONPath = mainDir + File.separator + cacheName + File.separator + cacheName.replace("cache-", "keys-") + ".json";
-		final String outputDirectory = cmd.getOptionValue("outputdir") + File.separator + cacheName + File.separator + "collision";
+		final String outputDirectory = cmd.getOptionValue("outputdir") + File.separator + cacheName;
+		final String outputDirectoryEx = outputDirectory + File.separator + "collision";
 
 		XteaKeyManager xteaKeyManager = new XteaKeyManager();
 		try (FileInputStream fin = new FileInputStream(xteaJSONPath))
@@ -153,8 +154,13 @@ public class SimbaCollisionMapDumper
 		}
 
 		File base = new File(cacheDirectory);
-		File outDir = new File(outputDirectory);
-		outDir.mkdirs();
+		File outDir;
+
+		if (exportFullMap) outDir = new File(outputDirectoryEx);
+		else outDir = new File(outputDirectory);
+
+		if (outDir.mkdirs()) throw new RuntimeException("Failed to create output path: " + outDir.getPath());
+		if (!exportFullMap) exportChunks = true;
 
 		try (Store store = new Store(base))
 		{
@@ -162,7 +168,7 @@ public class SimbaCollisionMapDumper
 			SimbaCollisionMapDumper dumper = new SimbaCollisionMapDumper(store, xteaKeyManager);
 			dumper.load();
 
-			ZipOutputStream zip;
+			ZipOutputStream zip = null;
 			if (exportChunks) {
 				zip = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(new File(outputDirectory, "collision.zip"))));
 			}
@@ -170,14 +176,14 @@ public class SimbaCollisionMapDumper
 			for (int i = 0; i < Region.Z; ++i)
 			{
 				BufferedImage image = dumper.drawRegions(i, zip);
-
-				File imageFile = new File(outDir, "img-" + i + ".png");
-
-				ImageIO.write(image, "png", imageFile);
-				log.info("Wrote image {}", imageFile);
+				if (exportFullMap) {
+					File imageFile = new File(outDir, "img-" + i + ".png");
+					ImageIO.write(image, "png", imageFile);
+					log.info("Wrote image {}", imageFile);
+				}
 			}
 
-			zip.close();
+			if (zip != null) zip.close();
 		}
 	}
 
@@ -315,8 +321,6 @@ public class SimbaCollisionMapDumper
 			if (debugMap) //MAYBE CAN REMOVE?
 				drawRegions(pixels, region, z);
 		}
-
-		assert pixels != null;
 
 		for (int i = 0; i < MAP_SCALE; ++i)
 		{
@@ -477,8 +481,7 @@ public class SimbaCollisionMapDumper
 									else
 									{
 										// randomness added here
-										int overlayHsl = packHsl(overlayDefinition.getHue(), overlayDefinition.getSaturation(), overlayDefinition.getLightness());
-										hsl = overlayHsl;
+										hsl = packHsl(overlayDefinition.getHue(), overlayDefinition.getSaturation(), overlayDefinition.getLightness());
 									}
 
 									if (hsl != -2)
@@ -500,18 +503,11 @@ public class SimbaCollisionMapDumper
 
 								if (shape == 0)
 								{
-									int drawX = xi;
-									int drawY = Region.Y - 1 - yi;
-									if (underlayRgb != 0)
-									{
-										drawMapSquare(pixels, drawX, drawY, underlayRgb);
-									}
+									if (underlayRgb != 0) drawMapSquare(pixels, xi, Region.Y - 1 - yi, underlayRgb);
 								}
 								else if (shape == 1)
 								{
-									int drawX = xi;
-									int drawY = Region.Y - 1 - yi;
-									drawMapSquare(pixels, drawX, drawY, overlayRgb);
+									drawMapSquare(pixels, xi, Region.Y - 1 - yi, overlayRgb);
 								}
 								else
 								{
@@ -549,10 +545,10 @@ public class SimbaCollisionMapDumper
 		return 64 - -(d % 64) - 1;
 	}
 
-	private void paintTile(BufferedImage image, int x, int y, int color){
+	private void paintTile(BufferedImage image, int x, int y){
 		for (int i = 0; i < MAP_SCALE; i++) {
 			for (int j = 0; j < MAP_SCALE; j++) {
-				image.setRGB(x + i, y + j, color);
+				image.setRGB(x + i, y + j, SimbaCollisionMapDumper.collisionColor);
 			}
 		}
 	}
@@ -711,7 +707,7 @@ public class SimbaCollisionMapDumper
 							if (rotation == 0 || rotation == 2) {
 								for (int sX = 0; sX < object.getSizeX(); sX++) {
 									for (int sY = 0; sY < object.getSizeY(); sY++) {
-										paintTile(image, drawX + sX * MAP_SCALE, drawY + sY * MAP_SCALE, collisionColor);
+										paintTile(image, drawX + sX * MAP_SCALE, drawY + sY * MAP_SCALE);
 									}
 								}
 							}
@@ -721,7 +717,7 @@ public class SimbaCollisionMapDumper
 								if (object.getSizeX() < object.getSizeY()) {
 									for (int sX = 0; sX < object.getSizeX(); sX++) {
 										for (int sY = 0; sY < object.getSizeY(); sY++) {
-											paintTile(image, drawX + sX * MAP_SCALE, drawY + sY * MAP_SCALE + MAP_SCALE, collisionColor);
+											paintTile(image, drawX + sX * MAP_SCALE, drawY + sY * MAP_SCALE + MAP_SCALE);
 										}
 									}
 								}
@@ -733,8 +729,8 @@ public class SimbaCollisionMapDumper
 
 									for (int sX = 0; sX < object.getSizeY(); sX++) {
 										for (int sY = 0; sY < object.getSizeX() / 2; sY++) {
-											paintTile(image, drawX + sX * MAP_SCALE, centerY + sY * MAP_SCALE, collisionColor);
-											paintTile(image, drawX + sX * MAP_SCALE, centerY - sY * MAP_SCALE - MAP_SCALE, collisionColor);
+											paintTile(image, drawX + sX * MAP_SCALE, centerY + sY * MAP_SCALE);
+											paintTile(image, drawX + sX * MAP_SCALE, centerY - sY * MAP_SCALE - MAP_SCALE);
 										}
 									}
 									//image.setRGB(drawX + object.getSizeY() * MAP_SCALE/2, drawY - MAP_SCALE, 0xFFFFFF);
@@ -775,7 +771,7 @@ public class SimbaCollisionMapDumper
 		return (var0 & 65408) + var1;
 	}
 
-	static final int adjustHSLListness0(int var0, int var1)
+	static int adjustHSLListness0(int var0, int var1)
 	{
 		if (var0 == -2) return 12345678;
 

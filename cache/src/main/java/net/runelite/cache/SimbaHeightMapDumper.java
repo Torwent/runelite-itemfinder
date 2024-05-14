@@ -47,7 +47,8 @@ public class SimbaHeightMapDumper
 	private static final Logger logger = LoggerFactory.getLogger(SimbaHeightMapDumper.class);
 	private static final int MAP_SCALE = 1;
 	private static final float MAX_HEIGHT = 2048f;
-	private static final boolean exportChunks = true;
+	public static boolean exportFullMap = false;
+	private static boolean exportChunks = true;
 	private static final boolean exportEmptyImages = true;
 	private final Store store;
 	private RegionLoader regionLoader;
@@ -190,7 +191,8 @@ public class SimbaHeightMapDumper
 		final String cacheDirectory = mainDir + File.separator + cacheName + File.separator + "cache";
 
 		final String xteaJSONPath = mainDir + File.separator + cacheName + File.separator + cacheName.replace("cache-", "keys-") + ".json";
-		final String outputDirectory = cmd.getOptionValue("outputdir") + File.separator + cacheName + File.separator + "heightmap";
+		final String outputDirectory = cmd.getOptionValue("outputdir") + File.separator + cacheName;
+		final String outputDirectoryEx = outputDirectory + File.separator + "heightmap";
 
 
 		XteaKeyManager xteaKeyManager = new XteaKeyManager();
@@ -200,8 +202,13 @@ public class SimbaHeightMapDumper
 		}
 
 		File base = new File(cacheDirectory);
-		File outDir = new File(outputDirectory);
-		outDir.mkdirs();
+		File outDir;
+
+		if (exportFullMap) outDir = new File(outputDirectoryEx);
+		else outDir = new File(outputDirectory);
+
+		if (outDir.mkdirs()) throw new RuntimeException("Failed to create output path: " + outDir.getPath());
+		if (!exportFullMap) exportChunks = true;
 
 		try (Store store = new Store(base))
 		{
@@ -210,17 +217,19 @@ public class SimbaHeightMapDumper
 			SimbaHeightMapDumper dumper = new SimbaHeightMapDumper(store);
 			dumper.load(xteaKeyManager);
 
-			ZipOutputStream zip;
+			ZipOutputStream zip = null;
 			if (exportChunks) {
 				zip = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(new File(outputDirectory, "heightmap.zip"))));
 			}
 
 			BufferedImage image = dumper.drawRegions(0, zip);
-			zip.close();
+			if (zip != null) zip.close();
 
-			File imageFile = new File(outDir, "img.png");
-			ImageIO.write(image, "png", imageFile);
-			log.info("Wrote image {}", imageFile);
+			if (exportFullMap) {
+				File imageFile = new File(outDir, "img.png");
+				ImageIO.write(image, "png", imageFile);
+				log.info("Wrote image {}", imageFile);
+			}
 		}
 	}
 }
