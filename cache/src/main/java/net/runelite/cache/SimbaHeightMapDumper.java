@@ -45,7 +45,7 @@ import java.util.zip.ZipOutputStream;
 public class SimbaHeightMapDumper
 {
 	private static final Logger logger = LoggerFactory.getLogger(SimbaHeightMapDumper.class);
-	private static final int MAP_SCALE = 1;
+	private static final int MAP_SCALE = 4;
 	private static final float MAX_HEIGHT = 2048f;
 	public static boolean exportFullMap = false;
 	private static boolean exportChunks = true;
