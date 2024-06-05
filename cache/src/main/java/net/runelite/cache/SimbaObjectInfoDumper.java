@@ -65,7 +65,7 @@ public class SimbaObjectInfoDumper
 
 	private static boolean exportChunks = true;
 
-	private static final boolean exportEmptyJSONs = true;
+	private static final boolean exportEmptyJSONs = false;
 
 
 	public SimbaObjectInfoDumper(Store store, KeyProvider keyProvider)
