@@ -77,7 +77,6 @@ public class SimbaCollisionMapDumper
 	private RSTextureProvider rsTextureProvider;
 	private final ObjectManager objectManager;
 	public static boolean exportFullMap = false;
-
 	private static boolean exportChunks = true;
 	private static final boolean exportEmptyImages = true;
 	private static final boolean debugMap = false;

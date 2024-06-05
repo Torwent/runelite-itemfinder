@@ -259,21 +259,32 @@ public class SimbaObjectInfoDumper
 						//11=another type of tree and rocks. You can't interact I think
 						ObjectDefinition object = findObject(location.getId());
 
-						if (object.getName().equalsIgnoreCase("null")) continue;
+						if (object.getName().equalsIgnoreCase("null")) {
+							boolean found = false;
+							for (String action : object.getActions()) {
+								if (action != null) {
+									found = true;
+									break;
+								}
+							}
+							if (!found) continue;
+						};
+
 						if (object.getInteractType() == 0) continue;
 
 						int height = 0;
 						List<Integer> colors = new ArrayList<>();
 
-						for (int i = 0; i < object.getObjectModels().length; i++) {
-							Archive archive = index.getArchive(object.getObjectModels()[i]);
-							byte[] contents = archive.decompress(store.getStorage().loadArchive(archive));
-							ModelDefinition model = modelLoader.load(archive.getArchiveId(), contents);
+						if (object.getObjectModels() != null)
+							for (int i = 0; i < object.getObjectModels().length; i++) {
+								Archive archive = index.getArchive(object.getObjectModels()[i]);
+								byte[] contents = archive.decompress(store.getStorage().loadArchive(archive));
+								ModelDefinition model = modelLoader.load(archive.getArchiveId(), contents);
 
-							ObjExporter exporter = new ObjExporter(textureManager, model);
-							if (height == 0) height = exporter.getSimbaHeight();
-							colors.addAll(exporter.getSimbaColors());
-						}
+								ObjExporter exporter = new ObjExporter(textureManager, model);
+								if (height == 0) height = exporter.getSimbaHeight();
+								colors.addAll(exporter.getSimbaColors());
+							}
 
 						int x = (drawBaseX + localX) * MAP_SCALE;
 						int y = (drawBaseY + (Region.Y - object.getSizeY() - localY)) * MAP_SCALE;
@@ -291,8 +302,8 @@ public class SimbaObjectInfoDumper
 
 						JsonArray jsonActions = new JsonArray();
 						String[] actions = object.getActions();
-						for (int i = 0; i < actions.length; i++) {
-							if (actions[i] != null) jsonActions.add(actions[i]);
+						for (String action : actions) {
+							if (action != null) jsonActions.add(action);
 						}
 						obj.add("actions", jsonActions);
 

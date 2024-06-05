@@ -82,7 +82,7 @@ public class SimbaCacheDumper
 		}
 
 		File outDir = new File(outputDirectory);
-		if (outDir.mkdirs()) throw new RuntimeException("Failed to create output path: " + outDir.getPath());
+		if (!outDir.mkdirs()) throw new RuntimeException("Failed to create output path: " + outDir.getPath());
 
 		Store store = loadStore(cacheDirectory);
 
